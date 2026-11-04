@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
 import GoalsForm from "@/components/settings/GoalsForm";
+import PromptNotesForm from "@/components/settings/PromptNotesForm";
+import { copyText } from "@/lib/clipboard";
+import { FORMAT_EXAMPLE } from "@/lib/importCode";
 import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { toKey } from "@/lib/dates";
@@ -55,8 +58,23 @@ export default function SettingsPage() {
   const [goalsKey, setGoalsKey] = useState(0);
   const [pending, setPending] = useState<Data | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesKey, setNotesKey] = useState(0);
+  const [formatOpen, setFormatOpen] = useState(false);
   const closeGoals = useCallback(() => setGoalsOpen(false), []);
   const closeImport = useCallback(() => setImportOpen(false), []);
+  const closeNotes = useCallback(() => setNotesOpen(false), []);
+  const closeFormat = useCallback(() => setFormatOpen(false), []);
+
+  // Arriving from the paste screen's "Edit my notes" link opens the notes editor
+  // (once saved data has loaded, so the form starts with the current notes).
+  const openedFromHash = useRef(false);
+  useEffect(() => {
+    if (!s.ready || openedFromHash.current || window.location.hash !== "#prompt") return;
+    openedFromHash.current = true;
+    setNotesKey((k) => k + 1);
+    setNotesOpen(true);
+  }, [s.ready]);
 
   const g = s.goals;
   const dash = s.ready ? null : " ";
@@ -127,8 +145,16 @@ export default function SettingsPage() {
       <section className="group">
         <h2 className="group-title">AI entries</h2>
         <div className="card">
-          <Row icon="clipboard" label="Prompt template" value={soon} />
-          <Row icon="file" label="Import format" value={soon} />
+          <Row
+            icon="clipboard"
+            label="My prompt notes"
+            value={dash ?? (s.promptNotes.trim() ? "Added" : "None")}
+            onClick={() => {
+              setNotesKey((k) => k + 1);
+              setNotesOpen(true);
+            }}
+          />
+          <Row icon="file" label="Import format" value="JSON v1" onClick={() => setFormatOpen(true)} />
         </div>
       </section>
 
@@ -153,6 +179,35 @@ export default function SettingsPage() {
             toast.show("Goals saved");
           }}
         />
+      </Sheet>
+
+      <Sheet open={notesOpen} onClose={closeNotes} title="My prompt notes">
+        <PromptNotesForm
+          key={notesKey}
+          notes={s.promptNotes}
+          onSaved={() => {
+            closeNotes();
+            toast.show("Prompt notes saved");
+          }}
+        />
+      </Sheet>
+
+      <Sheet open={formatOpen} onClose={closeFormat} title="Import format (JSON v1)">
+        <p className="sheet-text" style={{ marginBottom: 0 }}>
+          One dish per paste. Required: <b>name</b>, <b>kcal</b>, <b>protein</b>, <b>carbs</b>, <b>fat</b>. Optional:
+          serving, fiber, sugar, sodium (mg), confidence, notes. Grams unless noted, for the whole portion.
+        </p>
+        <pre className="code-block">{FORMAT_EXAMPLE}</pre>
+        <div className="form-actions" style={{ marginTop: 14 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={async () => toast.show((await copyText(FORMAT_EXAMPLE)) ? "Example copied" : "Couldn't copy", {})}
+          >
+            <Icon name="copy" size={16} />
+            Copy example
+          </button>
+        </div>
       </Sheet>
 
       <Sheet open={importOpen} onClose={closeImport} title="Restore backup?">

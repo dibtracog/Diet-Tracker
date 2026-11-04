@@ -76,7 +76,7 @@ export default function TodayView() {
         eyebrow={longDate(date)}
         title={dayLabel(date, todayKey)}
         action={
-          <Link href="/paste" className="btn btn-secondary btn-sm">
+          <Link href={isToday ? "/paste" : `/paste?date=${date}`} className="btn btn-secondary btn-sm">
             <Icon name="clipboard" size={16} />
             Paste entry
           </Link>

@@ -54,8 +54,9 @@ the AI replies with a structured code block, and the user pastes it into the app
 2.7  Tolerant parsing where reasonable: ignore surrounding text or markdown code
      fences the AI may add around the code block.
 2.8  Format version field in the import code so the format can evolve later.
-2.9  The prompt template is editable/viewable in the app so it can be tweaked
-     (e.g. add the user's usual portion sizes or cuisine notes).
+2.9  The full prompt is viewable in the app. The user can add personal notes
+     (e.g. usual portion sizes or cuisine) that are appended to the prompt;
+     the format instructions stay fixed so replies always match the app.
 
 
 3. PHOTO HANDLING

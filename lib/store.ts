@@ -17,7 +17,10 @@ import { nowTime } from "./dates";
 
 export type Macros = { kcal: number; protein: number; carbs: number; fat: number };
 
-export type Food = Macros & {
+/** Optional extra nutrients (grams, sodium in mg), mostly filled in by AI paste entries. */
+export type Extras = { fiber?: number; sugar?: number; sodium?: number };
+
+export type Food = Macros & Extras & {
   id: string;
   name: string;
   /** What one serving is, e.g. "1 bowl". Macros are per serving. */
@@ -28,7 +31,7 @@ export type Food = Macros & {
   createdAt: number;
 };
 
-export type Entry = Macros & {
+export type Entry = Macros & Extras & {
   id: string;
   /** Local day, "YYYY-MM-DD". */
   date: string;
@@ -40,6 +43,8 @@ export type Entry = Macros & {
   servings: number;
   /** Library food this came from, if any. */
   foodId?: string;
+  /** Free-text note, e.g. the AI's assumptions. */
+  notes?: string;
   createdAt: number;
 };
 
@@ -53,11 +58,15 @@ export type Data = {
   entries: Entry[];
   water: WaterLog[];
   goals: Goals;
+  /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
+  promptNotes: string;
 };
 
 export type State = Data & { ready: boolean };
 
-export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite">;
+export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite"> & Extras;
+
+export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
 // ---------------------------------------------------------------------------
 // Store plumbing
@@ -67,7 +76,14 @@ const KEY = "diet-tracker:v1";
 
 export const DEFAULT_GOALS: Goals = { kcal: 2200, protein: 140, carbs: 250, fat: 70, waterMl: 3000 };
 
-const emptyData = (): Data => ({ version: 1, foods: [], entries: [], water: [], goals: { ...DEFAULT_GOALS } });
+const emptyData = (): Data => ({
+  version: 1,
+  foods: [],
+  entries: [],
+  water: [],
+  goals: { ...DEFAULT_GOALS },
+  promptNotes: "",
+});
 
 /** What the server (and the first browser render) sees: empty and not ready. */
 const SERVER_STATE: State = { ...emptyData(), ready: false };
@@ -92,6 +108,7 @@ function normalize(raw: unknown): Data | null {
     entries: list<Entry>(r.entries).map((e) => ({ ...e, servings: Number(e.servings) || 1 })),
     water: list<WaterLog>(r.water),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
+    promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
   };
 }
 
@@ -197,6 +214,9 @@ export function logFood(food: Food, date: string, servings = 1): Entry {
     protein: food.protein,
     carbs: food.carbs,
     fat: food.fat,
+    fiber: food.fiber,
+    sugar: food.sugar,
+    sodium: food.sodium,
     foodId: food.id,
     createdAt: Date.now(),
   };
@@ -205,6 +225,13 @@ export function logFood(food: Food, date: string, servings = 1): Entry {
     entries: [...d.entries, entry],
     foods: d.foods.map((f) => (f.id === food.id ? { ...f, uses: f.uses + 1, lastUsedAt: Date.now() } : f)),
   }));
+  return entry;
+}
+
+/** Adds an entry that didn't come from the library, e.g. a pasted AI entry. */
+export function addEntry(input: EntryInput): Entry {
+  const entry: Entry = { ...input, id: uid(), createdAt: Date.now() };
+  update((d) => ({ ...d, entries: [...d.entries, entry] }));
   return entry;
 }
 
@@ -244,6 +271,10 @@ export function undoWater(date: string) {
 
 export function updateGoals(goals: Goals) {
   update((d) => ({ ...d, goals }));
+}
+
+export function setPromptNotes(promptNotes: string) {
+  update((d) => ({ ...d, promptNotes }));
 }
 
 // ---------------------------------------------------------------------------
