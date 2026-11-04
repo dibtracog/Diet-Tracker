@@ -1178,6 +1178,50 @@ p {
   font-size: 15px;
   min-height: 130px;
 }
+.login {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px);
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+}
+.login-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--text);
+}
+.login-title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+.sync-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: var(--text-3);
+}
+.sync-dot.synced {
+  background: var(--accent);
+}
+.sync-dot.syncing {
+  background: var(--water);
+}
+.sync-dot.offline,
+.sync-dot.error {
+  background: var(--carbs);
+}
 .storage-note {
   font-size: 13px;
   color: var(--text-3);

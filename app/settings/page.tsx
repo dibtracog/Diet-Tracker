@@ -11,7 +11,24 @@ import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { toKey } from "@/lib/dates";
 import { fmt } from "@/lib/format";
-import { exportJSON, parseBackup, replaceData, useStore, type Data } from "@/lib/store";
+import {
+  exportJSON,
+  parseBackup,
+  replaceData,
+  signOut,
+  syncNow,
+  useStore,
+  type Data,
+  type State,
+} from "@/lib/store";
+
+function syncLabel(s: State): string {
+  if (s.sync === "syncing") return "Saving…";
+  if (s.sync === "offline") return s.pending ? `Offline · ${s.pending} waiting` : "Offline";
+  if (s.sync === "error") return s.pending ? `Retrying · ${s.pending} waiting` : "Couldn't sync, retrying";
+  if (s.pending) return `${s.pending} waiting`;
+  return "All changes saved";
+}
 
 function Row({
   icon,
@@ -61,6 +78,7 @@ export default function SettingsPage() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesKey, setNotesKey] = useState(0);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [signOutArmed, setSignOutArmed] = useState(false);
   const closeGoals = useCallback(() => setGoalsOpen(false), []);
   const closeImport = useCallback(() => setImportOpen(false), []);
   const closeNotes = useCallback(() => setNotesOpen(false), []);
@@ -108,6 +126,41 @@ export default function SettingsPage() {
   return (
     <div className="narrow">
       <PageHeader eyebrow="Preferences" title="Settings" />
+
+      {s.auth === "signedIn" ? (
+        <section className="group">
+          <h2 className="group-title">Account</h2>
+          <div className="card">
+            <Row icon="lock" label="Signed in as" value={s.email ?? ""} />
+            <Row
+              icon="upload"
+              label="Sync"
+              value={
+                <>
+                  <span className={`sync-dot ${s.pending && s.sync === "synced" ? "syncing" : s.sync}`} />
+                  {syncLabel(s)}
+                </>
+              }
+              onClick={() => {
+                void syncNow().then(() => toast.show("Synced"));
+              }}
+            />
+            <Row
+              icon="x"
+              label={signOutArmed ? "Tap again to sign out" : "Sign out"}
+              value={signOutArmed && s.pending ? `${s.pending} changes not synced yet` : ""}
+              onClick={() => {
+                if (!signOutArmed) {
+                  setSignOutArmed(true);
+                  window.setTimeout(() => setSignOutArmed(false), 4000);
+                  return;
+                }
+                void signOut();
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section className="group">
         <h2 className="group-title">Goals</h2>
@@ -165,7 +218,9 @@ export default function SettingsPage() {
           <Row icon="upload" label="Restore from backup" value="JSON" onClick={() => fileRef.current?.click()} />
         </div>
         <p className="storage-note">
-          Your data is saved in this browser on this device only. Export a backup now and then so nothing is lost.
+          {s.auth === "signedIn"
+            ? "Your data is saved to your account and shared between your devices. A copy is kept on this device so the app works offline."
+            : "Your data is saved in this browser on this device only. Export a backup now and then so nothing is lost."}
         </p>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={pickFile} />
       </section>

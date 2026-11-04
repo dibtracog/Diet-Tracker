@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { useCallback, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icons";
 import AddSheet from "./AddSheet";
+import LoginScreen from "./LoginScreen";
 import TodayDate from "./TodayDate";
+import { useStore } from "@/lib/store";
 
 type NavItem = { href: string; label: string; icon: IconName };
 
@@ -20,6 +22,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [addOpen, setAddOpen] = useState(false);
   const closeAdd = useCallback(() => setAddOpen(false), []);
+  const { auth } = useStore();
+
+  // With cloud sync on, nothing is shown until you're signed in.
+  if (auth === "signedOut") return <LoginScreen />;
+  if (auth === "loading") return <div className="login" aria-busy="true" />;
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
