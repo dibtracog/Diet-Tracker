@@ -1,0 +1,186 @@
+PERSONAL DIET TRACKER - REQUIREMENTS (v0.1)
+==========================================
+
+0. GUIDING PRINCIPLES
+---------------------
+- Personal-use app, single user only (no multi-user, no sharing, no public signup).
+- Target devices: an Android phone and a laptop. iPhone/iOS is NOT a target.
+- ZERO AI inside the app. No AI APIs, no AI agent, no AI parsing, no AI-powered
+  features, and no AI used at runtime. Nutrition values come from the user's own
+  library or from pasted import code (see section 2).
+- Works well on a phone (installable, camera-friendly, notifications).
+- Logging an entry should take as few taps as possible.
+- Built with Claude (development help only), pushed to GitHub, hosted on Vercel.
+
+
+1. CUSTOM FOOD LIBRARY
+----------------------
+1.1  The user can create a personal library of foods/dishes they eat regularly.
+1.2  Each library item stores: name, serving description (e.g. "1 bowl", "2 rotis"),
+     calories, protein, carbs, fat. Optional: fiber, sugar, sodium, notes, photo.
+1.3  Library items can be added, edited, and deleted.
+1.4  One-click logging: tapping a library item adds it to today's log immediately
+     (default 1 serving).
+1.5  After a one-click add, the user can quickly adjust the quantity/servings.
+     There are NO fixed meal categories (no breakfast/lunch/dinner split).
+1.6  Library is searchable and shows the most-used / recently-used items first.
+1.7  Items can be marked as favourites for faster access.
+1.8  Items created via the paste-import flow (section 2) can be saved into the
+     library with one extra tap.
+
+
+2. AI-ASSISTED ENTRY VIA COPY/PASTE (AI OUTSIDE THE APP)
+--------------------------------------------------------
+Workflow: the user photographs a meal, gives the photo + a description to ANY
+external AI (ChatGPT, Claude, Gemini, etc.) using a prompt supplied by this app,
+the AI replies with a structured code block, and the user pastes it into the app.
+
+2.1  The app provides a ready-made PROMPT TEMPLATE with a one-tap "Copy" button.
+     The prompt tells the AI to analyze the attached photo(s) and description and
+     to reply ONLY with a code block in the app's exact import format.
+2.2  The import format is a fixed, documented, plain-text structure (JSON proposed)
+     containing at minimum: dish name, serving description, calories, protein,
+     carbs, fat; optional: fiber, sugar, sodium, date/time, notes.
+     ONE DISH PER PASTE. Each paste creates exactly one entry. (A meal with
+     several dishes means several prompts/pastes.) Import format is JSON.
+2.3  The app has a "Paste entry" screen: a text box where the user pastes the
+     AI's output.
+2.4  The app parses the pasted code with plain deterministic code (no AI), and
+     shows a PREVIEW of the parsed entry before saving.
+2.5  The user can edit any value in the preview, then confirm to save as a log
+     entry (and optionally also save to the food library).
+2.6  Clear, friendly error messages if the pasted code is malformed or fields
+     are missing/invalid, saying exactly what is wrong.
+2.7  Tolerant parsing where reasonable: ignore surrounding text or markdown code
+     fences the AI may add around the code block.
+2.8  Format version field in the import code so the format can evolve later.
+2.9  The prompt template is editable/viewable in the app so it can be tweaked
+     (e.g. add the user's usual portion sizes or cuisine notes).
+
+
+3. PHOTO HANDLING
+-----------------
+3.1  The user takes meal photos with their phone camera (the phone's own camera
+     or the app's capture/upload button).
+3.2  The app does NOT analyze photos. Photos are only for the user's reference
+     and for sending to an external AI.
+3.3  Optional: attach a photo to a log entry as a visual record.
+3.4  Optional: keep a "pending meals" list - the user snaps a photo now (a
+     placeholder entry marked "needs details") and fills in the nutrition later
+     via the paste flow or the library.
+3.5  PHASE 1 photo storage:
+     a) CLOUD: a compressed copy of each photo (small file size, enough to
+        recognise the meal) is stored in the cloud and viewable on any device.
+     b) PHONE: the original high-resolution photo stays in the phone's normal
+        camera gallery (backed up by the phone's own tools). The app does not
+        store or manage the originals.
+3.6  The app compresses photos on the phone before uploading (plain image
+     resizing/compression, no AI).
+3.7  PHASE 2 (added later): MANUAL SYNC of high-res originals (user-triggered,
+     not automatic):
+     - The app stores high-res originals in its own browser storage on the
+       phone, and a "Sync" action, run while phone and laptop are both
+       active/online, pairs the devices directly (e.g. via QR code) and
+       copies the originals to the laptop.
+     - Sync shows progress, which photos were transferred, and any failures.
+     - It must not delete the originals from the phone unless the user
+       explicitly chooses to.
+     - Phase 1 must not block this: keep photo handling modular so it can be
+       added without rewriting the log.
+
+
+4. DAILY LOG
+------------
+4.1  Today view lists all entries as ONE food log in time order (no meal
+     categories), with per-entry and per-day totals (calories, protein,
+     carbs, fat).
+4.2  Entries can be edited, deleted (with an Undo option right after
+     deleting), or duplicated. Deleting is possible for any day.
+4.3  The user can view and add entries for past days.
+4.4  Daily calorie/macro targets can be set by the user (manual entry) and the
+     Today view shows progress against them.
+
+
+4B. WATER TRACKING
+------------------
+4B.1 Daily water counter with one-tap quick-add buttons (e.g. +250 ml, +500 ml,
+     +1 L) and the ability to enter a custom amount.
+4B.2 User sets a daily water goal; the Today view shows progress toward it.
+4B.3 Individual water entries can be undone, edited, or deleted.
+4B.4 Past days' water totals are viewable alongside the food log.
+4B.5 Optional water reminders at user-configured times (same reminder system as
+     section 5, rule-based, no AI).
+4B.6 Water data is included in data export (section 7).
+
+
+5. REMINDERS / NOTIFICATIONS
+----------------------------
+5.1  The app sends push notifications to the user's phone reminding them to log
+     their meals / fill in pending entries.
+5.2  User can configure reminder times (e.g. after typical breakfast, lunch,
+     dinner times) and turn reminders on/off.
+5.3  If there are pending "needs details" entries, a reminder mentions them.
+5.4  Tapping a notification opens the app directly to the log / paste screen.
+5.5  Reminders are rule-based (fixed times); no AI involved.
+
+
+6. MOBILE / PWA
+---------------
+6.1  The app is a Progressive Web App: installable to the phone home screen,
+     full-screen, app-like icon and splash.
+6.2  Mobile-first responsive layout with large tap targets; usable one-handed.
+6.3  Works on Android (Chrome) for the phone and on a desktop browser for the
+     laptop. iPhone/Safari support is not required.
+6.4  Basic offline tolerance: the app opens and shows recent data without
+     internet; new entries made offline sync when connection returns
+     (nice-to-have for v1).
+
+
+7. DATA & STORAGE
+-----------------
+7.1  Data persists across sessions and is accessible from both phone and laptop
+     (cloud database), tied to the user's own login.
+7.2  Simple, secure authentication so only the owner can access the data.
+7.3  Data export (CSV and/or JSON) so the data is never locked in.
+7.4  Import/export of the food library (JSON) for backup/restore.
+
+
+8. TECH & DEPLOYMENT
+--------------------
+8.1  Source code in a GitHub repository (Diet-Tracker).
+8.2  Hosted on Vercel, with automatic deploys from the main branch.
+8.3  Secrets/config (database URL, push keys) stored as Vercel environment
+     variables, never committed to the repo.
+8.4  Free-tier friendly, suitable for personal use.
+8.5  No AI/LLM SDKs or API keys in the codebase.
+
+
+9. OUT OF SCOPE FOR NOW (later ideas the user likes)
+----------------------------------------------------
+- Calorie/macro dashboard with weekly trend charts
+- Personalized goal calculator (TDEE, cut/maintain/bulk)
+- Supplement tracking
+- Weight and body measurement log with trend line
+- Recipe builder (per-serving nutrition from ingredients)
+- Micronutrient tracking and habit insights
+- Streaks
+- (Any later feature must still respect: no AI inside the app.)
+
+
+10. OPEN QUESTIONS TO DECIDE NEXT
+---------------------------------
+DECIDED:
+- Import format: JSON. One dish per paste.
+- Single-user, Android + laptop only.
+- Photos: compressed copy in cloud; originals stay in the phone gallery
+  (Phase 1). Manual device-to-device sync of high-res originals to the laptop
+  (direct pairing, e.g. QR code / WebRTC) is deferred to Phase 2.
+  Note for Phase 2: browser-managed storage can be cleared, so the laptop copy
+  (after sync) acts as the real backup.
+
+STILL OPEN:
+- Database/auth choice (e.g. Supabase) with a single-user login.
+- Notification delivery: web push via the installed PWA on Android (needs a
+  scheduled job on Vercel).
+- Cloud storage limits: free-tier size cap for compressed photos; maybe a
+  maximum compressed size/dimension to stay within it.
