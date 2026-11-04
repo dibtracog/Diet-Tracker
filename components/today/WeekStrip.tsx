@@ -1,55 +1,60 @@
 "use client";
 
-import { useState } from "react";
-import { useToday } from "@/lib/useToday";
+import { Icon } from "@/components/Icons";
+import { addDays, fromKey } from "@/lib/dates";
 
-const sameDay = (a: Date, b: Date) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-export default function WeekStrip() {
-  const today = useToday();
-  const [selected, setSelected] = useState<Date | null>(null);
-
-  if (!today) {
-    return (
-      <div className="week" aria-hidden="true">
-        {Array.from({ length: 7 }, (_, i) => (
-          <div key={i} className="day-pill is-skeleton" />
-        ))}
-      </div>
-    );
-  }
-
-  // Week starts on Monday.
-  const start = new Date(today);
-  start.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    return d;
-  });
-  const current = selected ?? today;
+export default function WeekStrip({
+  selected,
+  todayKey,
+  onSelect,
+}: {
+  selected: string;
+  todayKey: string;
+  onSelect: (key: string) => void;
+}) {
+  // Week of the selected day, starting Monday.
+  const start = addDays(selected, -((fromKey(selected).getDay() + 6) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const canNext = addDays(start, 7) <= todayKey;
 
   return (
-    <div className="week" role="group" aria-label="Choose a day">
-      {days.map((d) => {
-        const isToday = sameDay(d, today);
-        const isSel = sameDay(d, current);
-        const future = d > today && !isToday;
-        return (
-          <button
-            key={d.toISOString()}
-            type="button"
-            disabled={future}
-            onClick={() => setSelected(d)}
-            className={`day-pill ${isToday ? "is-today" : ""} ${isSel ? "is-selected" : ""}`}
-            aria-pressed={isSel}
-          >
-            <span className="dow">{d.toLocaleDateString("en-IN", { weekday: "short" })}</span>
-            <span className="dnum num">{d.getDate()}</span>
-          </button>
-        );
-      })}
+    <div className="week-wrap">
+      <button type="button" className="week-arrow" onClick={() => onSelect(addDays(selected, -7))} aria-label="Previous week">
+        <Icon name="chevronLeft" size={18} />
+      </button>
+      <div className="week" role="group" aria-label="Choose a day">
+        {days.map((k) => {
+          const d = fromKey(k);
+          const isToday = k === todayKey;
+          const isSel = k === selected;
+          return (
+            <button
+              key={k}
+              type="button"
+              disabled={k > todayKey}
+              onClick={() => onSelect(k)}
+              className={`day-pill ${isToday ? "is-today" : ""} ${isSel ? "is-selected" : ""}`}
+              aria-pressed={isSel}
+              aria-label={d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+            >
+              <span className="dow">{d.toLocaleDateString("en-IN", { weekday: "short" })}</span>
+              <span className="dnum num">{d.getDate()}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="week-arrow"
+        disabled={!canNext}
+        onClick={() => {
+          const next = addDays(selected, 7);
+          onSelect(next > todayKey ? todayKey : next);
+        }}
+        aria-label="Next week"
+      >
+        <Icon name="chevronRight" size={18} />
+      </button>
     </div>
   );
 }

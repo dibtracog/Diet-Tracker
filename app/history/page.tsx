@@ -1,69 +1,97 @@
 "use client";
 
+import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
-import { fmt, pastDays, targets } from "@/lib/mock";
+import { addDays, dayLabel, shortDate, toKey } from "@/lib/dates";
+import { fmt } from "@/lib/format";
+import { entriesFor, entryTotals, useStore, waterFor } from "@/lib/store";
 import { useToday } from "@/lib/useToday";
 
+const DAYS = 14;
+
 export default function HistoryPage() {
+  const s = useStore();
   const today = useToday();
-  const avgKcal = pastDays.reduce((s, d) => s + d[0], 0) / pastDays.length;
-  const avgProtein = pastDays.reduce((s, d) => s + d[1], 0) / pastDays.length;
-  const onTarget = pastDays.filter(([k]) => Math.abs(k - targets.kcal) <= targets.kcal * 0.1).length;
+
+  if (!s.ready || !today) {
+    return (
+      <div className="narrow">
+        <PageHeader eyebrow={" "} title="History" />
+        <div className="skeleton" style={{ height: 420 }} />
+      </div>
+    );
+  }
+
+  const todayKey = toKey(today);
+  const rows = Array.from({ length: DAYS }, (_, i) => {
+    const key = addDays(todayKey, -(i + 1));
+    const entries = entriesFor(s, key);
+    return { key, count: entries.length, t: entryTotals(entries), water: waterFor(s, key).total };
+  });
+
+  // Averages use only days in the last week that have something logged.
+  const week = rows.slice(0, 7).filter((r) => r.count > 0);
+  const avg = (pick: (r: (typeof rows)[number]) => number) =>
+    week.length ? week.reduce((sum, r) => sum + pick(r), 0) / week.length : null;
+  const avgKcal = avg((r) => r.t.kcal);
+  const avgProtein = avg((r) => r.t.protein);
+  const onTarget = week.filter((r) => Math.abs(r.t.kcal - s.goals.kcal) <= s.goals.kcal * 0.1).length;
 
   return (
     <div className="narrow">
-      <PageHeader eyebrow="Last 7 days" title="History" />
+      <PageHeader eyebrow={`Last ${DAYS} days`} title="History" />
 
       <div className="tiles">
         <div className="card tile">
-          <div className="tile-label">Avg calories</div>
-          <div className="tile-value num">{fmt(avgKcal)}</div>
+          <div className="tile-label">7-day avg kcal</div>
+          <div className="tile-value num">{avgKcal === null ? "–" : fmt(avgKcal)}</div>
         </div>
         <div className="card tile">
-          <div className="tile-label">Avg protein</div>
+          <div className="tile-label">7-day avg protein</div>
           <div className="tile-value num">
-            {fmt(avgProtein)}
-            <small>g</small>
+            {avgProtein === null ? "–" : fmt(avgProtein)}
+            {avgProtein === null ? null : <small>g</small>}
           </div>
         </div>
         <div className="card tile">
           <div className="tile-label">On target</div>
           <div className="tile-value num">
-            {onTarget}
-            <small>/ 7</small>
+            {week.length ? onTarget : "–"}
+            {week.length ? <small>/ {week.length}</small> : null}
           </div>
         </div>
       </div>
 
       <section className="card">
-        {pastDays.map(([kcal, protein, water], i) => {
-          const d = today ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - (i + 1)) : null;
-          const over = kcal > targets.kcal;
+        {rows.map(({ key, count, t, water }) => {
+          const over = t.kcal > s.goals.kcal;
           return (
-            <div key={i} className="history-row">
+            <Link key={key} href={`/?date=${key}`} className="history-row">
               <div className="history-date">
-                <div className="d1">
-                  {d ? (i === 0 ? "Yesterday" : d.toLocaleDateString("en-IN", { weekday: "long" })) : " "}
-                </div>
-                <div className="d2">{d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : " "}</div>
+                <div className="d1">{dayLabel(key, todayKey)}</div>
+                <div className="d2">{shortDate(key).replace(/^\w+, /, "")}</div>
               </div>
               <div className="history-bar">
                 <div className="history-meta num">
-                  <span>
-                    <b>{fmt(kcal)}</b> kcal · {protein}g protein
-                  </span>
-                  <span>{(water / 1000).toFixed(water % 1000 ? 2 : 0)} L</span>
+                  {count ? (
+                    <span>
+                      <b>{fmt(t.kcal)}</b> kcal · {fmt(t.protein)}g protein
+                    </span>
+                  ) : (
+                    <span>Nothing logged</span>
+                  )}
+                  <span>{water ? `${fmt(water)} ml` : ""}</span>
                 </div>
                 <div className="bar">
                   <i
                     style={{
-                      width: `${Math.min(100, (kcal / targets.kcal) * 100)}%`,
+                      width: `${s.goals.kcal > 0 ? Math.min(100, (t.kcal / s.goals.kcal) * 100) : 0}%`,
                       background: over ? "var(--fat)" : "var(--accent)",
                     }}
                   />
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </section>

@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
 import { Icon } from "@/components/Icons";
-import { fmt } from "@/lib/mock";
+import { fmt } from "@/lib/format";
 
 const SEGMENTS = 12;
 
-export default function WaterCard({ goal, initial = 0 }: { goal: number; initial?: number }) {
-  const [log, setLog] = useState<number[]>(initial ? [initial] : []);
-  const total = log.reduce((a, b) => a + b, 0);
-  const filled = Math.min(SEGMENTS, Math.round((total / goal) * SEGMENTS));
-  const add = (ml: number) => setLog((l) => [...l, ml]);
-  const undo = () => setLog((l) => l.slice(0, -1));
+export default function WaterCard({
+  total,
+  goal,
+  canUndo,
+  onAdd,
+  onUndo,
+}: {
+  total: number;
+  goal: number;
+  canUndo: boolean;
+  onAdd: (ml: number) => void;
+  onUndo: () => void;
+}) {
+  const filled = goal > 0 ? Math.min(SEGMENTS, Math.round((total / goal) * SEGMENTS)) : 0;
 
   return (
     <section className="card card-pad" id="water" aria-label="Water">
@@ -41,16 +48,16 @@ export default function WaterCard({ goal, initial = 0 }: { goal: number; initial
       </div>
 
       <div className="water-actions">
-        <button className="btn" onClick={() => add(250)}>
+        <button className="btn" onClick={() => onAdd(250)}>
           +250 ml
         </button>
-        <button className="btn" onClick={() => add(500)}>
+        <button className="btn" onClick={() => onAdd(500)}>
           +500 ml
         </button>
-        <button className="btn" onClick={() => add(1000)}>
+        <button className="btn" onClick={() => onAdd(1000)}>
           +1 L
         </button>
-        <button className="icon-btn" onClick={undo} disabled={log.length === 0} aria-label="Undo last water entry">
+        <button className="icon-btn" onClick={onUndo} disabled={!canUndo} aria-label="Undo last water entry">
           <Icon name="undo" size={18} />
         </button>
       </div>

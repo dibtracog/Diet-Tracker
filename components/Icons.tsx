@@ -28,9 +28,11 @@ const paths = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  minus: <path d="M5 12h14" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   chevronRight: <path d="m9 6 6 6-6 6" />,
+  chevronLeft: <path d="m15 6-6 6 6 6" />,
   droplet: <path d="M12 2.7s-6.5 7.1-6.5 11.8a6.5 6.5 0 0 0 13 0C18.5 9.8 12 2.7 12 2.7z" />,
   search: (
     <>

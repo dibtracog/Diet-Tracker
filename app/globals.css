@@ -570,6 +570,19 @@ p {
 .is-open .sheet {
   transform: none;
 }
+.sheet {
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sheet-body {
+  padding: 0 8px 4px;
+}
+.sheet-text {
+  color: var(--text-2);
+  font-size: 15px;
+  margin-bottom: 16px;
+}
 .sheet-handle {
   width: 36px;
   height: 5px;
@@ -761,10 +774,291 @@ p {
   background: var(--surface);
   height: 56px;
 }
+.week-wrap {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 2px;
+  align-items: center;
+}
+.week-arrow {
+  width: 30px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  transition: background 0.15s, opacity 0.15s;
+}
+.week-arrow:hover:not(:disabled) {
+  background: var(--surface);
+}
+.week-arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
 @media (min-width: 960px) {
-  .week {
-    max-width: 560px;
+  .week-wrap {
+    max-width: 620px;
   }
+}
+
+/* =========================================================
+   Forms
+   ========================================================= */
+.form {
+  display: grid;
+  gap: 14px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.input-wrap {
+  position: relative;
+  display: block;
+}
+.input {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder {
+  color: var(--text-3);
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(126, 226, 174, 0.15);
+}
+.has-suffix .input {
+  padding-right: 46px;
+}
+.input-suffix {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  font-size: 14px;
+  pointer-events: none;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-weight: 550;
+  cursor: pointer;
+}
+.switch {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  border-radius: 99px;
+  background: var(--border-strong);
+  flex: none;
+  transition: background 0.2s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s var(--ease);
+}
+.switch[aria-checked="true"] {
+  background: var(--accent);
+}
+.switch[aria-checked="true"]::after {
+  transform: translateX(18px);
+}
+.form-error {
+  font-size: 14px;
+  color: var(--fat);
+  background: rgba(242, 156, 130, 0.1);
+  border: 1px solid rgba(242, 156, 130, 0.25);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.form-actions .btn {
+  flex: 1;
+}
+.btn-danger {
+  background: rgba(242, 156, 130, 0.12);
+  color: var(--fat);
+}
+.btn-danger:hover {
+  background: rgba(242, 156, 130, 0.2);
+}
+.btn-danger.is-armed {
+  background: var(--fat);
+  color: #2a0e06;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.stepper .icon-btn {
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+.stepper-val {
+  min-width: 70px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+.stepper-unit {
+  color: var(--text-3);
+  font-size: 14px;
+}
+.preview-macros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.pm {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.pm b {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+}
+.pm span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.entry-head {
+  padding: 2px 0 4px;
+}
+.entry-head .t {
+  font-size: 18px;
+  font-weight: 700;
+}
+.entry-head .s {
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* Misc */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  background: var(--primary-soft);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.skeleton {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.empty-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-3);
+}
+.empty-cta .empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.empty-title {
+  font-weight: 650;
+  font-size: 17px;
+  color: var(--text);
+}
+.empty-cta .btn {
+  margin-top: 12px;
+}
+.quick-empty {
+  font-size: 14px;
+  color: var(--text-3);
+  padding: 4px 0 2px;
+}
+.row-hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border-radius: 10px;
+}
+.food-hit {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.food-hit:hover .food-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+}
+.storage-note {
+  font-size: 13px;
+  color: var(--text-3);
+  margin: 8px 4px 0;
 }
 
 /* Summary hero */
@@ -1294,6 +1588,10 @@ p {
   gap: 14px;
   padding: 14px 18px;
   border-top: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.history-row:hover {
+  background: var(--surface-2);
 }
 .history-row:first-child {
   border-top: 0;
