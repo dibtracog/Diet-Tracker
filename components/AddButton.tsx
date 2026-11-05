@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "./Icons";
+import { haptic } from "@/lib/useSwipe";
 
 /** Round "+" button that briefly flips to a check mark after a tap. */
 export default function AddButton({ onAdd, label }: { onAdd: () => void; label: string }) {
@@ -20,6 +21,7 @@ export default function AddButton({ onAdd, label }: { onAdd: () => void; label: 
       aria-label={label}
       onClick={() => {
         setDone(true);
+        haptic();
         onAdd();
       }}
     >

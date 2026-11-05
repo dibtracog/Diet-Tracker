@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddButton from "@/components/AddButton";
 import { Icon } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
@@ -120,6 +120,14 @@ export default function LibraryView() {
 
   const ready = s.ready && date;
 
+  // The "/" shortcut from another page lands here as /library#search.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!ready || window.location.hash !== "#search") return;
+    searchRef.current?.focus();
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [ready]);
+
   return (
     <>
       <PageHeader
@@ -170,10 +178,18 @@ export default function LibraryView() {
           <div className="search">
             <Icon name="search" size={18} />
             <input
+              ref={searchRef}
               type="search"
               placeholder="Search your foods"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setQuery("");
+                  e.currentTarget.blur();
+                }
+              }}
+              enterKeyHint="search"
               aria-label="Search your foods"
             />
           </div>

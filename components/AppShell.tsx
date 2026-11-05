@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icons";
 import AddSheet from "./AddSheet";
 import LoginScreen from "./LoginScreen";
 import PhotoMealForm from "./PhotoMealForm";
 import Sheet from "./Sheet";
+import ShortcutsList from "./Shortcuts";
+import { useHotkeys } from "@/lib/useHotkeys";
 import TodayDate from "./TodayDate";
 import { useToast } from "./Toast";
 import { useStore } from "@/lib/store";
@@ -38,6 +40,27 @@ export default function AppShell({ children }: { children: ReactNode }) {
     setAddOpen(false);
     photoInput.current?.click();
   };
+
+  const router = useRouter();
+  const [keysOpen, setKeysOpen] = useState(false);
+  const closeKeys = useCallback(() => setKeysOpen(false), []);
+  useHotkeys(
+    {
+      n: () => setAddOpen(true),
+      p: () => router.push("/paste"),
+      "1": () => router.push("/"),
+      "2": () => router.push("/library"),
+      "3": () => router.push("/history"),
+      "4": () => router.push("/settings"),
+      "?": () => setKeysOpen(true),
+      "/": () => {
+        const input = document.querySelector<HTMLInputElement>(".search input");
+        if (pathname === "/library" && input) input.focus();
+        else router.push("/library#search");
+      },
+    },
+    auth !== "signedOut" && auth !== "loading",
+  );
 
   // With cloud sync on, nothing is shown until you're signed in.
   if (auth === "signedOut") return <LoginScreen />;
@@ -104,6 +127,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <AddSheet open={addOpen} onClose={closeAdd} onPickPhoto={pickPhoto} />
+
+      <Sheet open={keysOpen} onClose={closeKeys} title="Keyboard shortcuts">
+        <ShortcutsList />
+      </Sheet>
 
       <input
         ref={photoInput}

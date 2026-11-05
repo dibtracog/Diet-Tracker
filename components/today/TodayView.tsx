@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useHotkeys } from "@/lib/useHotkeys";
+import { haptic, slideIn, useSwipe } from "@/lib/useSwipe";
 import { cleanupPhotos } from "@/lib/photos";
 import { Icon } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
@@ -70,6 +72,70 @@ export default function TodayView() {
   const [reuseKey, setReuseKey] = useState(0);
   const closeReuse = useCallback(() => setReuseOpen(false), []);
 
+  // ---- Moving between days: arrow keys, swipes, with a short slide ----------
+  const gridRef = useRef<HTMLDivElement>(null);
+  const slideFrom = useRef<"left" | "right" | null>(null);
+  const tk = today ? toKey(today) : null;
+  const current = tk ? resolveDate(params.get("date"), tk) : null;
+
+  // Where we're heading before the URL catches up, so quick repeated presses add up.
+  const heading = useRef<string | null>(null);
+  const goTo = (k: string) => {
+    const from = heading.current ?? current;
+    if (!tk || !from) return;
+    const target = k > tk ? tk : k;
+    if (target === from) return;
+    slideFrom.current = target > from ? "right" : "left";
+    heading.current = target;
+    router.replace(target === tk ? "/" : `/?date=${target}`, { scroll: false });
+  };
+  const step = (days: number) => {
+    const from = heading.current ?? current;
+    if (from) goTo(addDays(from, days));
+  };
+
+  useEffect(() => {
+    heading.current = null;
+  }, [current]);
+
+  useEffect(() => {
+    if (!slideFrom.current) return;
+    // Everything but the week row, which already shows where you are.
+    gridRef.current
+      ?.querySelectorAll<HTMLElement>(":scope > :not(.area-week)")
+      .forEach((el) => slideIn(el, slideFrom.current!));
+    slideFrom.current = null;
+  }, [current]);
+
+  const ready = s.ready && !!tk;
+  useHotkeys(
+    {
+      ArrowLeft: () => step(-1),
+      ArrowRight: () => step(1),
+      "shift+ArrowLeft": () => step(-7),
+      "shift+ArrowRight": () => step(7),
+      t: () => tk && goTo(tk),
+      w: () => {
+        if (!current) return;
+        addWater(current, 250);
+        toast.show("250 ml water added", { icon: "droplet", action: { label: "Undo", onClick: () => undoWater(current) } });
+      },
+    },
+    ready,
+  );
+
+  useSwipe(
+    gridRef,
+    (dir, target) => {
+      const weeks = !!target.closest(".week-wrap");
+      const days = (weeks ? 7 : 1) * (dir === "left" ? 1 : -1);
+      if (dir === "left" && current === tk) return; // nothing after today
+      haptic();
+      step(days);
+    },
+    ready,
+  );
+
   useEffect(() => {
     if (!s.ready || photosCleaned) return;
     photosCleaned = true;
@@ -109,7 +175,7 @@ export default function TodayView() {
     setReuseOpen(true);
   };
 
-  const select = (k: string) => router.replace(k === todayKey ? "/" : `/?date=${k}`, { scroll: false });
+  const select = goTo;
 
   const remove = (e: Entry) => {
     removeEntry(e.id);
@@ -154,6 +220,12 @@ export default function TodayView() {
         eyebrow={
           <>
             {longDate(date)}
+            {!isToday ? (
+              <button type="button" className="today-jump" onClick={() => goTo(todayKey)}>
+                Back to today
+                <Icon name="chevronRight" size={12} strokeWidth={2.4} />
+              </button>
+            ) : null}
             {isToday && streak >= 2 ? (
               <span className="streak-pill" title="Days in a row with food logged">
                 <Icon name="flame" size={12} strokeWidth={2.2} />
@@ -171,7 +243,7 @@ export default function TodayView() {
         }
       />
 
-      <div className="today-grid">
+      <div className="today-grid" ref={gridRef}>
         <div className="area-week">
           <WeekStrip selected={date} todayKey={todayKey} onSelect={select} logged={logged} />
         </div>

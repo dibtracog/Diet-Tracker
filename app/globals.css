@@ -81,6 +81,14 @@ button {
   padding: 0;
   cursor: pointer;
 }
+/* No double-tap zoom (or its tap delay) on controls. */
+button,
+a,
+input,
+label,
+[role="button"] {
+  touch-action: manipulation;
+}
 a {
   color: inherit;
   text-decoration: none;
@@ -171,9 +179,11 @@ p {
   font-weight: 500;
   transition: background 0.15s, color 0.15s;
 }
-.side-link:hover {
-  background: var(--surface-2);
-  color: var(--text);
+@media (hover: hover) {
+  .side-link:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
 }
 .side-link.is-active {
   background: var(--primary-soft);
@@ -304,8 +314,10 @@ p {
   color: var(--on-primary);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
-.btn-primary:hover {
-  background: var(--primary-strong);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--primary-strong);
+  }
 }
 .btn-secondary {
   background: var(--surface);
@@ -313,14 +325,18 @@ p {
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
-.btn-secondary:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .btn-secondary:hover {
+    background: var(--surface-2);
+  }
 }
 .btn-ghost {
   color: var(--primary);
 }
-.btn-ghost:hover {
-  background: var(--primary-soft);
+@media (hover: hover) {
+  .btn-ghost:hover {
+    background: var(--primary-soft);
+  }
 }
 .btn-sm {
   height: 36px;
@@ -347,8 +363,10 @@ p {
   color: var(--text-2);
   transition: background 0.15s;
 }
-.icon-btn:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .icon-btn:hover {
+    background: var(--surface-2);
+  }
 }
 
 .add-btn {
@@ -362,8 +380,10 @@ p {
   flex: none;
   transition: background 0.15s, color 0.15s, transform 0.1s;
 }
-.add-btn:hover {
-  background: var(--primary-tint);
+@media (hover: hover) {
+  .add-btn:hover {
+    background: var(--primary-tint);
+  }
 }
 .add-btn:active {
   transform: scale(0.92);
@@ -528,8 +548,10 @@ p {
   font-weight: 700;
   color: #1e7f5c;
 }
-.toast-action:hover {
-  background: rgba(12, 42, 31, 0.07);
+@media (hover: hover) {
+  .toast-action:hover {
+    background: rgba(12, 42, 31, 0.07);
+  }
 }
 @media (min-width: 960px) {
   .toast {
@@ -637,8 +659,10 @@ p {
   width: 100%;
   text-align: left;
 }
-.action:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
 }
 .action-icon {
   width: 46px;
@@ -672,8 +696,10 @@ p {
 .action.is-disabled .action-body {
   opacity: 0.5;
 }
-.action.is-disabled:hover {
-  background: none;
+@media (hover: hover) {
+  .action.is-disabled:hover {
+    background: none;
+  }
 }
 .action > .chev {
   color: var(--text-3);
@@ -735,8 +761,10 @@ p {
   transition: background 0.15s, color 0.15s;
   position: relative;
 }
-.day-pill:hover:not(:disabled) {
-  background: var(--surface);
+@media (hover: hover) {
+  .day-pill:hover:not(:disabled):not(.is-selected) {
+    background: var(--surface);
+  }
 }
 .day-pill .dow {
   font-size: 11px;
@@ -793,6 +821,16 @@ p {
   opacity: 0.4;
   cursor: default;
 }
+/* Touch feedback (hover styles only apply to mice). */
+.day-pill:active:not(:disabled):not(.is-selected) {
+  background: var(--surface-2);
+}
+.day-pill:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.day-pill {
+  transition: background 0.15s, color 0.15s, transform 0.12s;
+}
 .day-pill.is-skeleton {
   background: var(--surface);
   height: 56px;
@@ -812,8 +850,10 @@ p {
   color: var(--text-2);
   transition: background 0.15s, opacity 0.15s;
 }
-.week-arrow:hover:not(:disabled) {
-  background: var(--surface);
+@media (hover: hover) {
+  .week-arrow:hover:not(:disabled) {
+    background: var(--surface);
+  }
 }
 .week-arrow:disabled {
   opacity: 0.25;
@@ -942,8 +982,10 @@ p {
   background: rgba(242, 156, 130, 0.12);
   color: var(--fat);
 }
-.btn-danger:hover {
-  background: rgba(242, 156, 130, 0.2);
+@media (hover: hover) {
+  .btn-danger:hover {
+    background: rgba(242, 156, 130, 0.2);
+  }
 }
 .btn-danger.is-armed {
   background: var(--fat);
@@ -1073,10 +1115,12 @@ p {
   min-width: 0;
   text-align: left;
 }
-.food-hit:hover .food-name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--border-strong);
+@media (hover: hover) {
+  .food-hit:hover .food-name {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border-strong);
+  }
 }
 .grid-3 {
   display: grid;
@@ -1387,8 +1431,10 @@ p {
   text-align: left;
   border-radius: 0;
 }
-.pick-row:hover .add-btn {
-  background: var(--primary-tint);
+@media (hover: hover) {
+  .pick-row:hover .add-btn {
+    background: var(--primary-tint);
+  }
 }
 .recipe-badge {
   display: inline-block;
@@ -1757,8 +1803,10 @@ p {
   background: var(--water-soft);
   color: var(--water-ink);
 }
-.water-actions .btn:hover {
-  background: rgba(95, 177, 240, 0.24);
+@media (hover: hover) {
+  .water-actions .btn:hover {
+    background: rgba(95, 177, 240, 0.24);
+  }
 }
 .water-actions .icon-btn {
   flex: none;
@@ -1839,9 +1887,11 @@ p {
   flex: none;
   color: var(--text-3);
 }
-.del:hover {
-  color: var(--fat);
-  background: rgba(242, 156, 130, 0.12);
+@media (hover: hover) {
+  .del:hover {
+    color: var(--fat);
+    background: rgba(242, 156, 130, 0.12);
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .row .del {
@@ -1912,8 +1962,10 @@ p {
   white-space: nowrap;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.chip:hover {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+  .chip:hover {
+    border-color: var(--border-strong);
+  }
 }
 .chip.is-active {
   background: var(--primary);
@@ -1942,9 +1994,11 @@ p {
   gap: 14px;
   transition: box-shadow 0.2s, border-color 0.2s;
 }
-.food-card:hover {
-  box-shadow: var(--shadow);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+  .food-card:hover {
+    box-shadow: var(--shadow);
+    border-color: var(--border-strong);
+  }
 }
 .food-top {
   display: flex;
@@ -1971,8 +2025,10 @@ p {
   flex: none;
   transition: color 0.15s, background 0.15s;
 }
-.star:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .star:hover {
+    background: var(--surface-2);
+  }
 }
 .star.on {
   color: #e2a23b;
@@ -2131,8 +2187,10 @@ p {
   border-top: 1px solid var(--border);
   transition: background 0.15s;
 }
-.history-row:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .history-row:hover {
+    background: var(--surface-2);
+  }
 }
 .history-row:first-child {
   border-top: 0;
@@ -2201,8 +2259,10 @@ p {
 .setting:only-child {
   border-radius: var(--radius-lg);
 }
-.setting:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .setting:hover {
+    background: var(--surface-2);
+  }
 }
 .setting-icon {
   width: 34px;
@@ -2286,6 +2346,71 @@ p {
 .seg.is-4 button {
   font-size: 13px;
   padding: 0 2px;
+}
+
+/* Back to today, shortcuts */
+.today-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px 1px 9px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent);
+  background: rgba(126, 226, 174, 0.12);
+  vertical-align: 1px;
+}
+.today-jump:active {
+  background: rgba(126, 226, 174, 0.22);
+}
+@media (hover: hover) {
+  .today-jump:hover {
+    background: rgba(126, 226, 174, 0.2);
+  }
+}
+.shortcuts {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 6px;
+}
+.shortcut-group h3 {
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin: 0 0 4px;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.shortcut-row:first-of-type {
+  border-top: 0;
+}
+.shortcut-keys {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+kbd {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 24px;
+  padding: 2px 7px;
+  text-align: center;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  color: var(--text);
 }
 
 /* Maintenance calories */

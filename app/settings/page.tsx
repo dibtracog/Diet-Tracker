@@ -9,6 +9,7 @@ import { copyText } from "@/lib/clipboard";
 import { downloadFile, logToCsv } from "@/lib/download";
 import { FORMAT_EXAMPLE } from "@/lib/importCode";
 import Sheet from "@/components/Sheet";
+import ShortcutsList from "@/components/Shortcuts";
 import { useToast } from "@/components/Toast";
 import { toKey } from "@/lib/dates";
 import { fmt } from "@/lib/format";
@@ -84,6 +85,8 @@ export default function SettingsPage() {
   const closeImport = useCallback(() => setImportOpen(false), []);
   const closeNotes = useCallback(() => setNotesOpen(false), []);
   const closeFormat = useCallback(() => setFormatOpen(false), []);
+  const [keysOpen, setKeysOpen] = useState(false);
+  const closeKeys = useCallback(() => setKeysOpen(false), []);
 
   // Arriving from the paste screen's "Edit my notes" link opens the notes editor
   // (once saved data has loaded, so the form starts with the current notes).
@@ -212,6 +215,13 @@ export default function SettingsPage() {
       </section>
 
       <section className="group">
+        <h2 className="group-title">App</h2>
+        <div className="card">
+          <Row icon="keyboard" label="Shortcuts & gestures" value="?" onClick={() => setKeysOpen(true)} />
+        </div>
+      </section>
+
+      <section className="group">
         <h2 className="group-title">Data</h2>
         <div className="card">
           <Row icon="file" label="Export food log" value="CSV" onClick={downloadCsv} />
@@ -226,6 +236,10 @@ export default function SettingsPage() {
         </p>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={pickFile} />
       </section>
+
+      <Sheet open={keysOpen} onClose={closeKeys} title="Shortcuts & gestures">
+        <ShortcutsList />
+      </Sheet>
 
       <Sheet open={goalsOpen} onClose={closeGoals} title="Daily goals">
         <GoalsForm

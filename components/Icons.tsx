@@ -120,6 +120,12 @@ const paths = {
     </>
   ),
   bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  keyboard: (
+    <>
+      <rect x="2.5" y="5.5" width="19" height="13" rx="2.5" />
+      <path d="M6.5 9.5h1M10.5 9.5h1M14.5 9.5h1M6.5 12.5h1M10.5 12.5h1M14.5 12.5h3M8 15.5h8" />
+    </>
+  ),
   lock: (
     <>
       <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
