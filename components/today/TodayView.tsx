@@ -8,14 +8,16 @@ import { Icon } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
 import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
-import { dayLabel, longDate, resolveDate, toKey } from "@/lib/dates";
+import { addDays, dayLabel, longDate, nowTime, resolveDate, shortDate, toKey } from "@/lib/dates";
+import { minutesOf, quickItems } from "@/lib/quick";
 import {
   addWater,
   duplicateEntry,
   entriesFor,
   entryTotals,
+  logCombo,
   logFood,
-  quickFoods,
+  removeEntries,
   removeEntry,
   removePendingMeal,
   removeWater,
@@ -25,6 +27,7 @@ import {
   undoWater,
   useStore,
   waterFor,
+  type Combo,
   type Entry,
   type Food,
   type PendingMeal,
@@ -42,6 +45,7 @@ import { useToday } from "@/lib/useToday";
 import EntryForm from "./EntryForm";
 import FoodLog from "./FoodLog";
 import QuickAdd from "./QuickAdd";
+import ReuseForm from "./ReuseForm";
 import SummaryCard from "./SummaryCard";
 import TodaySkeleton from "./TodaySkeleton";
 import WaterCard from "./WaterCard";
@@ -60,6 +64,11 @@ export default function TodayView() {
   const closeEdit = useCallback(() => setEditOpen(false), []);
   const [waterOpen, setWaterOpen] = useState(false);
   const closeWater = useCallback(() => setWaterOpen(false), []);
+  /** Which day's log the Reuse sheet is showing. */
+  const [reuseFrom, setReuseFrom] = useState<string | null>(null);
+  const [reuseOpen, setReuseOpen] = useState(false);
+  const [reuseKey, setReuseKey] = useState(0);
+  const closeReuse = useCallback(() => setReuseOpen(false), []);
 
   useEffect(() => {
     if (!s.ready || photosCleaned) return;
@@ -89,6 +98,16 @@ export default function TodayView() {
   const label = dayLabel(date, todayKey);
   const summaryTitle = isToday ? "Today so far" : `How ${label === "Yesterday" ? "yesterday" : label} went`;
   const showSummary = entries.length > 0 || water.total > 0;
+  const yesterday = addDays(todayKey, -1);
+  const canCopyYesterday = isToday && entries.length === 0 && s.entries.some((e) => e.date === yesterday);
+  const quick = quickItems(s, date, todayKey, minutesOf(nowTime()));
+  const reuseEntries = reuseFrom ? entriesFor(s, reuseFrom) : [];
+
+  const openReuse = (from: string) => {
+    setReuseFrom(from);
+    setReuseKey((k) => k + 1);
+    setReuseOpen(true);
+  };
 
   const select = (k: string) => router.replace(k === todayKey ? "/" : `/?date=${k}`, { scroll: false });
 
@@ -100,6 +119,11 @@ export default function TodayView() {
   const add = (f: Food) => {
     const entry = logFood(f, date);
     toast.show(`${f.name} added`, { action: { label: "Undo", onClick: () => removeEntry(entry.id) } });
+  };
+
+  const addCombo = (c: Combo) => {
+    const added = logCombo(c, date);
+    toast.show(`${c.name} added`, { action: { label: "Undo", onClick: () => removeEntries(added.map((e) => e.id)) } });
   };
 
   const edit = (e: Entry) => {
@@ -165,18 +189,53 @@ export default function TodayView() {
             onOpenLog={() => setWaterOpen(true)}
           />
           <QuickAdd
-            foods={quickFoods(s.foods)}
-            onAdd={add}
+            items={quick}
+            foods={s.foods}
+            onAddFood={add}
+            onAddCombo={addCombo}
             libraryHref={libraryHref}
-            libraryEmpty={s.foods.length === 0}
+            libraryEmpty={s.foods.length === 0 && s.combos.length === 0}
           />
           {showSummary && isToday ? <DaySummary goals={goals} title={summaryTitle} isToday /> : null}
         </div>
         <div className="area-log log-stack">
           <PendingMeals meals={s.pendingMeals} todayKey={todayKey} onRemove={discardPending} />
-          <FoodLog entries={entries} onRemove={remove} onEdit={edit} addHref={libraryHref} />
+          <FoodLog
+            entries={entries}
+            onRemove={remove}
+            onEdit={edit}
+            addHref={libraryHref}
+            onReuse={() => openReuse(date)}
+            onCopyYesterday={canCopyYesterday ? () => openReuse(yesterday) : undefined}
+          />
         </div>
       </div>
+
+      <Sheet
+        open={reuseOpen}
+        onClose={closeReuse}
+        title={reuseFrom === todayKey ? "Save as combo" : reuseFrom === yesterday && isToday ? "Copy from yesterday" : `Reuse ${reuseFrom ? shortDate(reuseFrom) : ""}`}
+      >
+        {reuseFrom && reuseEntries.length ? (
+          <ReuseForm
+            key={reuseKey}
+            entries={reuseEntries}
+            copyTo={reuseFrom === todayKey ? undefined : todayKey}
+            copyLabel="Copy to today"
+            onCopied={(copies) => {
+              closeReuse();
+              toast.show(`${copies.length} item${copies.length === 1 ? "" : "s"} copied to today`, {
+                action: { label: "Undo", onClick: () => removeEntries(copies.map((c) => c.id)) },
+              });
+              if (!isToday) select(todayKey);
+            }}
+            onSaved={(name) => {
+              closeReuse();
+              toast.show(`${name} saved. Find it in Quick add`, { icon: "layers" });
+            }}
+          />
+        ) : null}
+      </Sheet>
 
       <Sheet open={editOpen} onClose={closeEdit} title="Edit entry">
         {editing ? (

@@ -8,11 +8,16 @@
 create table if not exists public.records (
   user_id    uuid        not null default auth.uid() references auth.users (id) on delete cascade,
   id         text        not null,
-  kind       text        not null check (kind in ('food', 'entry', 'pending', 'water', 'weight', 'profile')),
+  kind       text        not null,
   data       jsonb       not null,
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+
+-- Kept separate so running this file again updates the list of kinds.
+alter table public.records drop constraint if exists records_kind_check;
+alter table public.records add constraint records_kind_check
+  check (kind in ('food', 'entry', 'pending', 'water', 'weight', 'combo', 'profile'));
 
 alter table public.records enable row level security;
 

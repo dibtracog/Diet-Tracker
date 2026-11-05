@@ -75,8 +75,30 @@ export type Entry = Macros &
     notes?: string;
     /** Meal photo kept on the device that took it (see lib/photos.ts). */
     photoId?: string;
+    /** Set when this entry was logged as part of a combo. */
+    comboId?: string;
     createdAt: number;
   };
+
+/** One food in a combo, with its own copy of the numbers (per serving). */
+export type ComboItem = Macros &
+  Extras & {
+    /** Library food it came from; when that food still exists, its current numbers are used. */
+    foodId?: string;
+    name: string;
+    serving: string;
+    servings: number;
+  };
+
+/** A saved group of foods logged together in one tap, each as its own entry (e.g. "Usual breakfast"). */
+export type Combo = {
+  id: string;
+  name: string;
+  items: ComboItem[];
+  uses: number;
+  lastUsedAt?: number;
+  createdAt: number;
+};
 
 /** A meal photographed now, with nutrition to be filled in later. */
 export type PendingMeal = {
@@ -102,6 +124,7 @@ export type Data = {
   pendingMeals: PendingMeal[];
   water: WaterLog[];
   weights: WeightLog[];
+  combos: Combo[];
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
   promptNotes: string;
@@ -125,7 +148,7 @@ export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "ca
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
-type Kind = "food" | "entry" | "pending" | "water" | "weight" | "profile";
+type Kind = "food" | "entry" | "pending" | "water" | "weight" | "combo" | "profile";
 type Op = { type: "upsert"; id: string; kind: Kind; data: unknown } | { type: "delete"; id: string };
 
 // ---------------------------------------------------------------------------
@@ -145,6 +168,7 @@ const emptyData = (): Data => ({
   pendingMeals: [],
   water: [],
   weights: [],
+  combos: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
 });
@@ -173,6 +197,7 @@ const dataOf = (s: State): Data => ({
   pendingMeals: s.pendingMeals,
   water: s.water,
   weights: s.weights,
+  combos: s.combos,
   goals: s.goals,
   promptNotes: s.promptNotes,
 });
@@ -191,6 +216,13 @@ function normalize(raw: unknown): Data | null {
     pendingMeals: list<PendingMeal>(r.pendingMeals),
     water: list<WaterLog>(r.water),
     weights: list<WeightLog>(r.weights).filter((w) => Number(w.kg) > 0),
+    combos: list<Combo>(r.combos)
+      .filter((c) => Array.isArray(c.items))
+      .map((c) => ({
+        ...c,
+        uses: Number(c.uses) || 0,
+        items: c.items.map((i) => ({ ...i, servings: Number(i.servings) || 1 })),
+      })),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
   };
@@ -308,12 +340,13 @@ export async function signOut() {
 /** Works out which records changed between two versions of the data. */
 function diff(prev: Data, next: Data): Op[] {
   const ops: Op[] = [];
-  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water" | "weights"][] = [
+  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water" | "weights" | "combos"][] = [
     ["food", "foods"],
     ["entry", "entries"],
     ["pending", "pendingMeals"],
     ["water", "water"],
     ["weight", "weights"],
+    ["combo", "combos"],
   ];
   for (const [kind, key] of collections) {
     const before = new Map<string, unknown>(prev[key].map((r) => [r.id, r]));
@@ -386,6 +419,7 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
     pendingMeals: rows.filter((r) => r.kind === "pending").map((r) => r.data),
     water: rows.filter((r) => r.kind === "water").map((r) => r.data),
     weights: rows.filter((r) => r.kind === "weight").map((r) => r.data),
+    combos: rows.filter((r) => r.kind === "combo").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
   })!;
@@ -407,6 +441,7 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     pendingMeals: addMissing(server.pendingMeals, local.pendingMeals),
     water: addMissing(server.water, local.water),
     weights: addMissing(server.weights, local.weights),
+    combos: addMissing(server.combos, local.combos),
     ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
   };
   // Keep a copy of the old local data, just in case.
@@ -642,6 +677,97 @@ export function removeEntry(id: string) {
   update((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== id) }));
 }
 
+/** Removes several entries at once (Undo for copies and combos). */
+export function removeEntries(ids: string[]) {
+  const drop = new Set(ids);
+  update((d) => ({ ...d, entries: d.entries.filter((e) => !drop.has(e.id)) }));
+}
+
+const bumpFoods = (foods: Food[], used: Set<string>) =>
+  used.size ? foods.map((f) => (used.has(f.id) ? { ...f, uses: f.uses + 1, lastUsedAt: Date.now() } : f)) : foods;
+
+/** Copies entries to another day, keeping their times (e.g. yesterday's food log to today). */
+export function copyEntries(entries: Entry[], date: string): Entry[] {
+  const now = Date.now();
+  const copies = entries.map((e, i) => ({ ...e, id: uid(), date, createdAt: now + i }));
+  update((d) => ({
+    ...d,
+    entries: [...d.entries, ...copies],
+    foods: bumpFoods(d.foods, new Set(copies.flatMap((c) => (c.foodId ? [c.foodId] : [])))),
+  }));
+  return copies;
+}
+
+// ---------------------------------------------------------------------------
+// Combos
+// ---------------------------------------------------------------------------
+
+/** A combo item made from a logged entry. */
+export function comboItemFrom(e: Entry | (Food & { servings?: number })): ComboItem {
+  const isEntry = "date" in e;
+  return {
+    foodId: isEntry ? e.foodId : e.id,
+    name: e.name,
+    serving: e.serving,
+    servings: e.servings ?? 1,
+    kcal: e.kcal,
+    protein: e.protein,
+    carbs: e.carbs,
+    fat: e.fat,
+    fiber: e.fiber,
+    sugar: e.sugar,
+    sodium: e.sodium,
+  };
+}
+
+/** The combo's items with the current numbers of any library foods they came from. */
+export function comboItems(combo: Combo, foods: Food[]): ComboItem[] {
+  const byId = new Map(foods.map((f) => [f.id, f]));
+  return combo.items.map((i) => {
+    const f = i.foodId ? byId.get(i.foodId) : undefined;
+    return f ? { ...comboItemFrom(f), servings: i.servings } : i;
+  });
+}
+
+export function addCombo(name: string, items: ComboItem[]): Combo {
+  const combo: Combo = { id: uid(), name, items, uses: 0, createdAt: Date.now() };
+  update((d) => ({ ...d, combos: [...d.combos, combo] }));
+  return combo;
+}
+
+export function updateCombo(id: string, patch: Partial<Pick<Combo, "name" | "items">>) {
+  update((d) => ({ ...d, combos: d.combos.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+}
+
+export function deleteCombo(id: string) {
+  update((d) => ({ ...d, combos: d.combos.filter((c) => c.id !== id) }));
+}
+
+export function restoreCombo(combo: Combo) {
+  update((d) => (d.combos.some((c) => c.id === combo.id) ? d : { ...d, combos: [...d.combos, combo] }));
+}
+
+/** Logs every food in a combo as its own entry, all at the current time. */
+export function logCombo(combo: Combo, date: string): Entry[] {
+  const now = Date.now();
+  const time = nowTime();
+  const entries: Entry[] = comboItems(combo, state.foods).map((i, n) => ({
+    ...i,
+    id: uid(),
+    date,
+    time,
+    comboId: combo.id,
+    createdAt: now + n,
+  }));
+  update((d) => ({
+    ...d,
+    entries: [...d.entries, ...entries],
+    combos: d.combos.map((c) => (c.id === combo.id ? { ...c, uses: c.uses + 1, lastUsedAt: now } : c)),
+    foods: bumpFoods(d.foods, new Set(entries.flatMap((e) => (e.foodId ? [e.foodId] : [])))),
+  }));
+  return entries;
+}
+
 export function restoreEntry(entry: Entry) {
   update((d) => (d.entries.some((e) => e.id === entry.id) ? d : { ...d, entries: [...d.entries, entry] }));
 }
@@ -755,18 +881,12 @@ export function entryTotals(entries: Entry[]): Macros {
   );
 }
 
+/** Totals for a list of combo items (each multiplied by its servings). */
+export function itemTotals(items: { servings: number; kcal: number; protein: number; carbs: number; fat: number }[]): Macros {
+  return entryTotals(items as Entry[]);
+}
+
 export function waterFor(d: Data, date: string): { total: number; count: number } {
   const logs = d.water.filter((w) => w.date === date);
   return { total: logs.reduce((s, w) => s + w.ml, 0), count: logs.length };
-}
-
-/** Favourites first (most used first); falls back to the most-used foods. */
-export function quickFoods(foods: Food[], limit = 6): Food[] {
-  const byUse = (a: Food, b: Food) => b.uses - a.uses || (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0);
-  const favs = foods.filter((f) => f.favourite).sort(byUse);
-  if (favs.length) return favs.slice(0, limit);
-  return foods
-    .filter((f) => f.uses > 0)
-    .sort(byUse)
-    .slice(0, limit);
 }

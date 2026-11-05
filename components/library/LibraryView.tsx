@@ -10,13 +10,31 @@ import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { resolveDate, shortDate, toKey } from "@/lib/dates";
 import { fmt } from "@/lib/format";
-import { deleteFood, logFood, removeEntry, restoreFood, toggleFavourite, useStore, type Food } from "@/lib/store";
+import {
+  comboItems,
+  deleteCombo,
+  deleteFood,
+  itemTotals,
+  logCombo,
+  logFood,
+  removeEntries,
+  removeEntry,
+  restoreCombo,
+  restoreFood,
+  toggleFavourite,
+  useStore,
+  type Combo,
+  type Food,
+} from "@/lib/store";
 import { useToday } from "@/lib/useToday";
+import ComboForm from "./ComboForm";
 import FoodForm from "./FoodForm";
 import RecipeForm from "./RecipeForm";
 
-const FILTERS = ["All", "Favourites", "Recent", "Most used", "Recipes"] as const;
+const FILTERS = ["All", "Favourites", "Recent", "Most used", "Recipes", "Combos"] as const;
 type Filter = (typeof FILTERS)[number];
+type Kind = "food" | "recipe" | "combo";
+const KIND_LABEL: Record<Kind, string> = { food: "Single food", recipe: "Recipe", combo: "Combo" };
 
 export default function LibraryView() {
   const s = useStore();
@@ -28,8 +46,9 @@ export default function LibraryView() {
   const [filter, setFilter] = useState<Filter>("All");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Food | null>(null);
+  const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
   const [formKey, setFormKey] = useState(0);
-  const [kind, setKind] = useState<"food" | "recipe">("food");
+  const [kind, setKind] = useState<Kind>("food");
   const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   const items = useMemo(() => {
@@ -48,14 +67,42 @@ export default function LibraryView() {
   const date = todayKey ? resolveDate(params.get("date"), todayKey) : null;
   const isToday = date === todayKey;
 
-  const openForm = (food: Food | null, newKind: "food" | "recipe" = "food") => {
+  const combos = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return s.combos.filter((c) => c.name.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name));
+  }, [s.combos, query]);
+
+  const openForm = (food: Food | null, newKind: Kind = filter === "Combos" ? "combo" : "food") => {
     setEditing(food);
+    setEditingCombo(null);
     setKind(food?.recipe ? "recipe" : food ? "food" : newKind);
     setFormKey((k) => k + 1);
     setSheetOpen(true);
   };
+  const openCombo = (combo: Combo) => {
+    setEditing(null);
+    setEditingCombo(combo);
+    setKind("combo");
+    setFormKey((k) => k + 1);
+    setSheetOpen(true);
+  };
   const isRecipe = kind === "recipe";
-  const sheetTitle = editing ? (isRecipe ? "Edit recipe" : "Edit food") : isRecipe ? "New recipe" : "New food";
+  const isEditing = !!(editing || editingCombo);
+  const sheetTitle = `${isEditing ? "Edit" : "New"} ${kind === "food" ? "food" : kind}`;
+
+  const addCombo = (c: Combo) => {
+    if (!date) return;
+    const entries = logCombo(c, date);
+    toast.show(`${c.name} added to ${isToday ? "today" : shortDate(date)}`, {
+      action: { label: "Undo", onClick: () => removeEntries(entries.map((e) => e.id)) },
+    });
+  };
+
+  const delCombo = (c: Combo) => {
+    closeSheet();
+    deleteCombo(c.id);
+    toast.show(`${c.name} deleted`, { icon: "trash", action: { label: "Undo", onClick: () => restoreCombo(c) } });
+  };
 
   const add = (f: Food) => {
     if (!date) return;
@@ -103,7 +150,7 @@ export default function LibraryView() {
             <div key={i} className="skeleton" style={{ height: 118 }} />
           ))}
         </div>
-      ) : s.foods.length === 0 ? (
+      ) : s.foods.length === 0 && s.combos.length === 0 ? (
         <div className="card empty-cta">
           <span className="empty-icon">
             <Icon name="library" size={24} />
@@ -145,7 +192,50 @@ export default function LibraryView() {
             ))}
           </div>
 
-          {items.length ? (
+          {filter === "Combos" ? (
+            combos.length ? (
+              <div className="food-grid">
+                {combos.map((c) => {
+                  const list = comboItems(c, s.foods);
+                  const t = itemTotals(list);
+                  return (
+                    <article key={c.id} className="card food-card">
+                      <div className="food-top">
+                        <button type="button" className="food-hit" onClick={() => openCombo(c)} aria-label={`Edit ${c.name}`}>
+                          <div className="food-name">
+                            {c.name}
+                            <span className="combo-badge">Combo</span>
+                          </div>
+                          <div className="food-serving combo-items">{list.map((i) => i.name).join(", ")}</div>
+                        </button>
+                      </div>
+                      <div className="food-bottom">
+                        <div className="food-kcal num">
+                          {fmt(t.kcal)}
+                          <small>kcal</small>
+                        </div>
+                        <div className="macro-pills num">
+                          <span className="mp">P {fmt(t.protein)}g</span>
+                          <span className="mp">C {fmt(t.carbs)}g</span>
+                          <span className="mp">F {fmt(t.fat)}g</span>
+                        </div>
+                        <AddButton label={`Log ${c.name}`} onAdd={() => addCombo(c)} />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="card empty">
+                <Icon name="layers" size={28} />
+                <div>
+                  {query
+                    ? `No combos match “${query}”.`
+                    : "No combos yet. Tap New, then Combo, or save foods from a day's log with the copy button."}
+                </div>
+              </div>
+            )
+          ) : items.length ? (
             <div className="food-grid">
               {items.map((f) => (
                 <article key={f.id} className="card food-card">
@@ -204,9 +294,9 @@ export default function LibraryView() {
       )}
 
       <Sheet open={sheetOpen} onClose={closeSheet} title={sheetTitle}>
-        {!editing ? (
-          <div className="seg" role="tablist" aria-label="What to add">
-            {(["food", "recipe"] as const).map((k) => (
+        {!isEditing ? (
+          <div className="seg is-3" role="tablist" aria-label="What to add">
+            {(["food", "recipe", "combo"] as const).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -215,12 +305,23 @@ export default function LibraryView() {
                 className={kind === k ? "is-active" : ""}
                 onClick={() => setKind(k)}
               >
-                {k === "food" ? "Single food" : "Recipe"}
+                {KIND_LABEL[k]}
               </button>
             ))}
           </div>
         ) : null}
-        {isRecipe ? (
+        {kind === "combo" ? (
+          <ComboForm
+            key={`c${formKey}`}
+            combo={editingCombo ?? undefined}
+            foods={s.foods}
+            onSaved={(msg) => {
+              closeSheet();
+              toast.show(msg);
+            }}
+            onDelete={delCombo}
+          />
+        ) : isRecipe ? (
           <RecipeForm
             key={`r${formKey}`}
             food={editing ?? undefined}

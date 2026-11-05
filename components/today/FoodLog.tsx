@@ -9,11 +9,17 @@ export default function FoodLog({
   onRemove,
   onEdit,
   addHref,
+  onReuse,
+  onCopyYesterday,
 }: {
   entries: Entry[];
   onRemove: (e: Entry) => void;
   onEdit: (e: Entry) => void;
   addHref: string;
+  /** Opens the copy / save-as-combo sheet for this day's foods. */
+  onReuse: () => void;
+  /** Shown on an empty today when yesterday has food logged. */
+  onCopyYesterday?: () => void;
 }) {
   const t = entryTotals(entries);
   return (
@@ -27,6 +33,17 @@ export default function FoodLog({
               : "Nothing logged yet"}
           </div>
         </div>
+        {entries.length ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm btn-icon"
+            onClick={onReuse}
+            aria-label="Copy these foods or save them as a combo"
+            title="Copy or save as combo"
+          >
+            <Icon name="copy" size={16} />
+          </button>
+        ) : null}
         <Link href={addHref} className="btn btn-secondary btn-sm">
           <Icon name="plus" size={16} strokeWidth={2.2} />
           Add
@@ -76,10 +93,17 @@ export default function FoodLog({
         </div>
       ) : (
         <div className="meal-empty">
-          <span>Nothing logged for this day</span>
-          <Link href={addHref} className="btn btn-ghost btn-sm">
-            Add food
-          </Link>
+          <span>{onCopyYesterday ? "Eating the same as yesterday?" : "Nothing logged for this day"}</span>
+          {onCopyYesterday ? (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCopyYesterday}>
+              <Icon name="copy" size={16} />
+              Copy yesterday
+            </button>
+          ) : (
+            <Link href={addHref} className="btn btn-ghost btn-sm">
+              Add food
+            </Link>
+          )}
         </div>
       )}
     </section>

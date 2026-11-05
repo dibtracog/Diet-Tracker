@@ -113,6 +113,13 @@ const paths = {
       <path d="M8.2 9.6a5.4 5.4 0 0 1 7.6 0l-2.3 2.7a2 2 0 0 0-3 0z" />
     </>
   ),
+  layers: (
+    <>
+      <path d="m12 3 9 5-9 5-9-5z" />
+      <path d="m3 13 9 5 9-5" />
+    </>
+  ),
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
   lock: (
     <>
       <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" />
