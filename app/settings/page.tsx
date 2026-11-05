@@ -15,7 +15,11 @@ import { toKey } from "@/lib/dates";
 import { fmt } from "@/lib/format";
 import {
   exportJSON,
+  exportLibrary,
+  importLibrary,
   parseBackup,
+  parseLibrary,
+  type LibraryImport,
   replaceData,
   signOut,
   syncNow,
@@ -87,6 +91,10 @@ export default function SettingsPage() {
   const closeFormat = useCallback(() => setFormatOpen(false), []);
   const [keysOpen, setKeysOpen] = useState(false);
   const closeKeys = useCallback(() => setKeysOpen(false), []);
+  const libRef = useRef<HTMLInputElement>(null);
+  const [libImport, setLibImport] = useState<LibraryImport | null>(null);
+  const [libOpen, setLibOpen] = useState(false);
+  const closeLib = useCallback(() => setLibOpen(false), []);
 
   // Arriving from the paste screen's "Edit my notes" link opens the notes editor
   // (once saved data has loaded, so the form starts with the current notes).
@@ -110,6 +118,28 @@ export default function SettingsPage() {
     if (!s.entries.length) return toast.show("Nothing logged yet", { icon: "x" });
     downloadFile(`diet-tracker-log-${toKey(new Date())}.csv`, logToCsv(s), "text/csv;charset=utf-8");
     toast.show("Food log downloaded");
+  };
+
+  const downloadLibrary = () => {
+    if (!s.foods.length && !s.combos.length) return toast.show("Your library is empty", { icon: "x" });
+    downloadFile(`diet-tracker-library-${toKey(new Date())}.json`, exportLibrary(), "application/json");
+    toast.show("Library downloaded");
+  };
+
+  const pickLibrary = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const result = parseLibrary(await file.text());
+    if (!result.ok) return toast.show(result.error, { icon: "x" });
+    if (!result.foods.length && !result.combos.length) {
+      return toast.show(
+        result.skipped === 1 ? "Nothing new: you already have it" : `Nothing new: you already have all ${result.skipped}`,
+        { icon: "check" },
+      );
+    }
+    setLibImport(result);
+    setLibOpen(true);
   };
 
   const pickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,6 +258,10 @@ export default function SettingsPage() {
           <Row icon="download" label="Export backup" value="JSON" onClick={download} />
           <Row icon="upload" label="Restore from backup" value="JSON" onClick={() => fileRef.current?.click()} />
         </div>
+        <div className="card" style={{ marginTop: 12 }}>
+          <Row icon="library" label="Export food library" value="JSON" onClick={downloadLibrary} />
+          <Row icon="upload" label="Import food library" value="JSON" onClick={() => libRef.current?.click()} />
+        </div>
         <p className="storage-note">
           {s.auth === "signedIn"
             ? "Your data is saved to your account and shared between your devices. A copy is kept on this device so the app works offline."
@@ -235,7 +269,52 @@ export default function SettingsPage() {
           Meal photos stay on the device that took them and aren&apos;t part of the backup file.
         </p>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={pickFile} />
+        <input ref={libRef} type="file" accept="application/json,.json" hidden onChange={pickLibrary} />
       </section>
+
+      <Sheet open={libOpen} onClose={closeLib} title="Import food library?">
+        {libImport ? (
+          <>
+            <p className="sheet-text">
+              This adds{" "}
+              <b>
+                {libImport.foods.length} food{libImport.foods.length === 1 ? "" : "s"}
+              </b>
+              {libImport.combos.length ? (
+                <>
+                  {" "}
+                  and{" "}
+                  <b>
+                    {libImport.combos.length} combo{libImport.combos.length === 1 ? "" : "s"}
+                  </b>
+                </>
+              ) : null}{" "}
+              to your library.
+              {libImport.skipped
+                ? ` ${libImport.skipped} you already have (same name) will be skipped.`
+                : ""}{" "}
+              Nothing in your library or log is changed or removed.
+            </p>
+            <div className="form-actions">
+              <button type="button" className="btn btn-secondary" onClick={closeLib}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  importLibrary(libImport);
+                  closeLib();
+                  const n = libImport.foods.length + libImport.combos.length;
+                  toast.show(`${n} item${n === 1 ? "" : "s"} added to your library`);
+                }}
+              >
+                Import
+              </button>
+            </div>
+          </>
+        ) : null}
+      </Sheet>
 
       <Sheet open={keysOpen} onClose={closeKeys} title="Shortcuts & gestures">
         <ShortcutsList />

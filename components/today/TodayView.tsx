@@ -27,7 +27,12 @@ import {
   restorePendingMeal,
   restoreWater,
   undoWater,
+  updateWater,
   useStore,
+  deleteHabit,
+  restoreHabit,
+  toggleHabit,
+  type Habit,
   waterFor,
   type Combo,
   type Entry,
@@ -48,6 +53,9 @@ import EntryForm from "./EntryForm";
 import FoodLog from "./FoodLog";
 import QuickAdd from "./QuickAdd";
 import ReuseForm from "./ReuseForm";
+import HabitsCard from "./HabitsCard";
+import HabitsForm from "./HabitsForm";
+import { habitDays, sortedHabits } from "@/lib/habits";
 import SummaryCard from "./SummaryCard";
 import TodaySkeleton from "./TodaySkeleton";
 import WaterCard from "./WaterCard";
@@ -66,6 +74,9 @@ export default function TodayView() {
   const closeEdit = useCallback(() => setEditOpen(false), []);
   const [waterOpen, setWaterOpen] = useState(false);
   const closeWater = useCallback(() => setWaterOpen(false), []);
+  const [waterKey, setWaterKey] = useState(0);
+  const [habitsOpen, setHabitsOpen] = useState(false);
+  const closeHabits = useCallback(() => setHabitsOpen(false), []);
   /** Which day's log the Reuse sheet is showing. */
   const [reuseFrom, setReuseFrom] = useState<string | null>(null);
   const [reuseOpen, setReuseOpen] = useState(false);
@@ -168,6 +179,15 @@ export default function TodayView() {
   const canCopyYesterday = isToday && entries.length === 0 && s.entries.some((e) => e.date === yesterday);
   const quick = quickItems(s, date, todayKey, minutesOf(nowTime()));
   const reuseEntries = reuseFrom ? entriesFor(s, reuseFrom) : [];
+  const habits = sortedHabits(s);
+  const byHabit = habitDays(s);
+  const doneOnDay = new Set(habits.filter((h) => byHabit.get(h.id)?.has(date)).map((h) => h.id));
+  const habitStreaks = new Map(habits.map((h) => [h.id, currentStreak(byHabit.get(h.id) ?? new Set(), todayKey)]));
+
+  const removeHabit = (h: Habit) => {
+    const { habit, logs } = deleteHabit(h.id);
+    if (habit) toast.show(`${h.name} deleted`, { icon: "trash", action: { label: "Undo", onClick: () => restoreHabit(habit, logs) } });
+  };
 
   const openReuse = (from: string) => {
     setReuseFrom(from);
@@ -258,7 +278,19 @@ export default function TodayView() {
             canUndo={water.count > 0}
             onAdd={(ml) => addWater(date, ml)}
             onUndo={() => undoWater(date)}
-            onOpenLog={() => setWaterOpen(true)}
+            onOpenLog={() => {
+              setWaterKey((k) => k + 1);
+              setWaterOpen(true);
+            }}
+          />
+          <HabitsCard
+            habits={habits}
+            done={doneOnDay}
+            streaks={habitStreaks}
+            onToggle={(h) => {
+              if (toggleHabit(h.id, date)) haptic();
+            }}
+            onManage={() => setHabitsOpen(true)}
           />
           <QuickAdd
             items={quick}
@@ -282,6 +314,10 @@ export default function TodayView() {
           />
         </div>
       </div>
+
+      <Sheet open={habitsOpen} onClose={closeHabits} title="Habits & supplements">
+        <HabitsForm habits={habits} onDelete={removeHabit} />
+      </Sheet>
 
       <Sheet
         open={reuseOpen}
@@ -325,7 +361,16 @@ export default function TodayView() {
       </Sheet>
 
       <Sheet open={waterOpen} onClose={closeWater} title={`Water · ${dayLabel(date, todayKey)}`}>
-        <WaterLogList logs={s.water.filter((w) => w.date === date)} onRemove={dropWater} />
+        <WaterLogList
+          key={waterKey}
+          logs={s.water.filter((w) => w.date === date)}
+          onAdd={(ml) => addWater(date, ml)}
+          onUpdate={(w, ml) => {
+            updateWater(w.id, ml);
+            toast.show(`Changed to ${ml} ml`, { icon: "droplet", action: { label: "Undo", onClick: () => updateWater(w.id, w.ml) } });
+          }}
+          onRemove={dropWater}
+        />
       </Sheet>
 
       {toast.node}

@@ -17,7 +17,7 @@ create table if not exists public.records (
 -- Kept separate so running this file again updates the list of kinds.
 alter table public.records drop constraint if exists records_kind_check;
 alter table public.records add constraint records_kind_check
-  check (kind in ('food', 'entry', 'pending', 'water', 'weight', 'combo', 'profile'));
+  check (kind in ('food', 'entry', 'pending', 'water', 'weight', 'combo', 'habit', 'habitlog', 'profile'));
 
 alter table public.records enable row level security;
 

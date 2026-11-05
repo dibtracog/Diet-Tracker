@@ -115,6 +115,12 @@ export type WaterLog = { id: string; date: string; ml: number; createdAt: number
 /** One weigh-in per day; logging again for the same day replaces it. */
 export type WeightLog = { id: string; date: string; kg: number; createdAt: number };
 
+/** A daily yes/no item such as a supplement or a habit ("Creatine", "Gym"). */
+export type Habit = { id: string; name: string; order: number; createdAt: number };
+
+/** One habit done on one day. The id is `${habitId}_${date}`, so a day can only be ticked once. */
+export type HabitLog = { id: string; habitId: string; date: string; createdAt: number };
+
 export type Goals = Macros & { waterMl: number; /** Optional target body weight. */ weightKg?: number };
 
 export type Data = {
@@ -125,6 +131,8 @@ export type Data = {
   water: WaterLog[];
   weights: WeightLog[];
   combos: Combo[];
+  habits: Habit[];
+  habitLogs: HabitLog[];
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
   promptNotes: string;
@@ -148,7 +156,7 @@ export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "ca
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
-type Kind = "food" | "entry" | "pending" | "water" | "weight" | "combo" | "profile";
+type Kind = "food" | "entry" | "pending" | "water" | "weight" | "combo" | "habit" | "habitlog" | "profile";
 type Op = { type: "upsert"; id: string; kind: Kind; data: unknown } | { type: "delete"; id: string };
 
 // ---------------------------------------------------------------------------
@@ -169,6 +177,8 @@ const emptyData = (): Data => ({
   water: [],
   weights: [],
   combos: [],
+  habits: [],
+  habitLogs: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
 });
@@ -198,6 +208,8 @@ const dataOf = (s: State): Data => ({
   water: s.water,
   weights: s.weights,
   combos: s.combos,
+  habits: s.habits,
+  habitLogs: s.habitLogs,
   goals: s.goals,
   promptNotes: s.promptNotes,
 });
@@ -223,6 +235,10 @@ function normalize(raw: unknown): Data | null {
         uses: Number(c.uses) || 0,
         items: c.items.map((i) => ({ ...i, servings: Number(i.servings) || 1 })),
       })),
+    habits: list<Habit>(r.habits)
+      .filter((h) => typeof h.name === "string")
+      .map((h, i) => ({ ...h, order: Number.isFinite(h.order) ? h.order : i })),
+    habitLogs: list<HabitLog>(r.habitLogs).filter((l) => typeof l.habitId === "string" && typeof l.date === "string"),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
   };
@@ -340,13 +356,18 @@ export async function signOut() {
 /** Works out which records changed between two versions of the data. */
 function diff(prev: Data, next: Data): Op[] {
   const ops: Op[] = [];
-  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water" | "weights" | "combos"][] = [
+  const collections: [
+    Kind,
+    "foods" | "entries" | "pendingMeals" | "water" | "weights" | "combos" | "habits" | "habitLogs",
+  ][] = [
     ["food", "foods"],
     ["entry", "entries"],
     ["pending", "pendingMeals"],
     ["water", "water"],
     ["weight", "weights"],
     ["combo", "combos"],
+    ["habit", "habits"],
+    ["habitlog", "habitLogs"],
   ];
   for (const [kind, key] of collections) {
     const before = new Map<string, unknown>(prev[key].map((r) => [r.id, r]));
@@ -420,6 +441,8 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
     water: rows.filter((r) => r.kind === "water").map((r) => r.data),
     weights: rows.filter((r) => r.kind === "weight").map((r) => r.data),
     combos: rows.filter((r) => r.kind === "combo").map((r) => r.data),
+    habits: rows.filter((r) => r.kind === "habit").map((r) => r.data),
+    habitLogs: rows.filter((r) => r.kind === "habitlog").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
   })!;
@@ -442,6 +465,8 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     water: addMissing(server.water, local.water),
     weights: addMissing(server.weights, local.weights),
     combos: addMissing(server.combos, local.combos),
+    habits: addMissing(server.habits, local.habits),
+    habitLogs: addMissing(server.habitLogs, local.habitLogs),
     ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
   };
   // Keep a copy of the old local data, just in case.
@@ -788,6 +813,10 @@ export function restoreWater(log: WaterLog) {
   update((d) => (d.water.some((w) => w.id === log.id) ? d : { ...d, water: [...d.water, log] }));
 }
 
+export function updateWater(id: string, ml: number) {
+  update((d) => ({ ...d, water: d.water.map((w) => (w.id === id ? { ...w, ml } : w)) }));
+}
+
 /** Removes the most recent water entry for that day. */
 export function undoWater(date: string) {
   update((d) => {
@@ -817,6 +846,69 @@ export function removeWeight(id: string) {
 /** Undo helper: puts a weigh-in back (and drops whatever replaced it that day). */
 export function restoreWeight(log: WeightLog) {
   update((d) => ({ ...d, weights: [...d.weights.filter((w) => w.date !== log.date), log] }));
+}
+
+// ---------------------------------------------------------------------------
+// Habits & supplements
+// ---------------------------------------------------------------------------
+
+export const habitLogId = (habitId: string, date: string) => `${habitId}_${date}`;
+
+export function addHabit(name: string): Habit {
+  const order = state.habits.reduce((m, h) => Math.max(m, h.order + 1), 0);
+  const habit: Habit = { id: uid(), name, order, createdAt: Date.now() };
+  update((d) => ({ ...d, habits: [...d.habits, habit] }));
+  return habit;
+}
+
+export function renameHabit(id: string, name: string) {
+  update((d) => ({ ...d, habits: d.habits.map((h) => (h.id === id ? { ...h, name } : h)) }));
+}
+
+/** Moves a habit one place up (-1) or down (+1) in the list. */
+export function moveHabit(id: string, dir: -1 | 1) {
+  update((d) => {
+    const sorted = [...d.habits].sort((a, b) => a.order - b.order);
+    const i = sorted.findIndex((h) => h.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sorted.length) return d;
+    [sorted[i], sorted[j]] = [sorted[j], sorted[i]];
+    const order = new Map(sorted.map((h, n) => [h.id, n]));
+    return { ...d, habits: d.habits.map((h) => (h.order === order.get(h.id) ? h : { ...h, order: order.get(h.id)! })) };
+  });
+}
+
+/** Deletes a habit and its history. Returns what was removed, for Undo. */
+export function deleteHabit(id: string): { habit?: Habit; logs: HabitLog[] } {
+  const habit = state.habits.find((h) => h.id === id);
+  const logs = state.habitLogs.filter((l) => l.habitId === id);
+  update((d) => ({
+    ...d,
+    habits: d.habits.filter((h) => h.id !== id),
+    habitLogs: d.habitLogs.filter((l) => l.habitId !== id),
+  }));
+  return { habit, logs };
+}
+
+export function restoreHabit(habit: Habit, logs: HabitLog[]) {
+  update((d) => {
+    if (d.habits.some((h) => h.id === habit.id)) return d;
+    const have = new Set(d.habitLogs.map((l) => l.id));
+    return { ...d, habits: [...d.habits, habit], habitLogs: [...d.habitLogs, ...logs.filter((l) => !have.has(l.id))] };
+  });
+}
+
+/** Ticks or unticks a habit for a day. Returns true if it is now done. */
+export function toggleHabit(habitId: string, date: string): boolean {
+  const id = habitLogId(habitId, date);
+  const done = state.habitLogs.some((l) => l.id === id);
+  update((d) => ({
+    ...d,
+    habitLogs: done
+      ? d.habitLogs.filter((l) => l.id !== id)
+      : [...d.habitLogs, { id, habitId, date, createdAt: Date.now() }],
+  }));
+  return !done;
 }
 
 // ---------------------------------------------------------------------------
@@ -852,6 +944,56 @@ export function parseBackup(text: string): { ok: true; data: Data } | { ok: fals
   }
   const data = normalize(raw);
   return data ? { ok: true, data } : { ok: false, error: "That file couldn't be read." };
+}
+
+// ---------------------------------------------------------------------------
+// Food library on its own (for sharing between setups or starting fresh)
+// ---------------------------------------------------------------------------
+
+export function exportLibrary(): string {
+  const s = getSnapshot();
+  return JSON.stringify(
+    { type: "diet-tracker-library", version: 1, foods: s.foods, combos: s.combos, exportedAt: new Date().toISOString() },
+    null,
+    2,
+  );
+}
+
+export type LibraryImport = { foods: Food[]; combos: Combo[]; skipped: number };
+
+/**
+ * Reads a library file (or a full backup, using only its foods and combos) and
+ * works out what's new. Foods and combos you already have, by id or by the same
+ * name, are skipped, so importing twice does nothing.
+ */
+export function parseLibrary(text: string): ({ ok: true } & LibraryImport) | { ok: false; error: string } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "That file isn't valid JSON." };
+  }
+  const r = raw as Record<string, unknown> | null;
+  if (!r || typeof r !== "object" || (!Array.isArray(r.foods) && !Array.isArray(r.combos))) {
+    return { ok: false, error: "That file doesn't contain a food library." };
+  }
+  const data = normalize({ foods: r.foods, combos: r.combos })!;
+  const s = getSnapshot();
+  const key = (name: string) => name.trim().toLowerCase();
+  const foodIds = new Set(s.foods.map((f) => f.id));
+  const foodNames = new Set(s.foods.map((f) => key(f.name)));
+  const comboIds = new Set(s.combos.map((c) => c.id));
+  const comboNames = new Set(s.combos.map((c) => key(c.name)));
+  const foods = data.foods.filter(
+    (f) => typeof f.name === "string" && Number.isFinite(Number(f.kcal)) && !foodIds.has(f.id) && !foodNames.has(key(f.name)),
+  );
+  const combos = data.combos.filter((c) => typeof c.name === "string" && !comboIds.has(c.id) && !comboNames.has(key(c.name)));
+  const skipped = data.foods.length + data.combos.length - foods.length - combos.length;
+  return { ok: true, foods, combos, skipped };
+}
+
+export function importLibrary(found: LibraryImport) {
+  update((d) => ({ ...d, foods: [...d.foods, ...found.foods], combos: [...d.combos, ...found.combos] }));
 }
 
 /** Replaces everything (on this device and, when signed in, in the cloud) with the backup. */

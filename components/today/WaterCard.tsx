@@ -59,6 +59,9 @@ export default function WaterCard({
         <button className="btn" onClick={() => onAdd(1000)}>
           +1 L
         </button>
+        <button className="icon-btn" onClick={onOpenLog} aria-label="Add a custom amount" title="Custom amount">
+          <Icon name="plus" size={18} />
+        </button>
         <button className="icon-btn" onClick={onUndo} disabled={!canUndo} aria-label="Undo last water entry">
           <Icon name="undo" size={18} />
         </button>

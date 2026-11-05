@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import WeeklyChart from "@/components/history/WeeklyChart";
 import WeightSection from "@/components/history/WeightSection";
 import MaintenanceCard from "@/components/history/MaintenanceCard";
+import HabitsSection from "@/components/history/HabitsSection";
 import { weeklyStats } from "@/lib/trends";
 import { bestStreak, currentStreak, loggedDays, loggedInLast } from "@/lib/streaks";
 import { Icon } from "@/components/Icons";
@@ -106,6 +107,9 @@ export default function HistoryPage() {
         <WeightSection weights={s.weights} goals={s.goals} todayKey={todayKey} />
       </Suspense>
       <MaintenanceCard data={s} todayKey={todayKey} />
+
+      <h2 className="section-title">Habits</h2>
+      <HabitsSection data={s} todayKey={todayKey} />
 
       <h2 className="section-title">Weekly trends</h2>
       <WeeklyChart

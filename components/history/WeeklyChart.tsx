@@ -171,7 +171,9 @@ export default function WeeklyChart({
         ) : null}
       </div>
 
-      <table className="sr-only">
+      {/* Wrapped: a table ignores width: 1px and would make the page scroll sideways on phones. */}
+      <div className="sr-only">
+      <table>
         <caption>{title}</caption>
         <thead>
           <tr>
@@ -190,6 +192,7 @@ export default function WeeklyChart({
           ))}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

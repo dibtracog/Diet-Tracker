@@ -2348,6 +2348,109 @@ p {
   padding: 0 2px;
 }
 
+/* Water sheet */
+.water-custom-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.water-custom-row .input-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.water-custom-row .btn {
+  flex: none;
+  height: 46px;
+}
+.water-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.water-presets .chip {
+  height: 32px;
+  font-size: 13px;
+}
+.row-edit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  flex: none;
+}
+
+/* Habits */
+.habit-line {
+  width: 100%;
+  text-align: left;
+}
+.habit-line .goal-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.habit-line:active .goal-mark {
+  transform: scale(0.9);
+}
+.goal-mark {
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+.habit-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--carbs);
+  flex: none;
+}
+.habit-name {
+  text-align: left;
+  min-width: 0;
+}
+.habit-stat {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.habit-stat:first-of-type {
+  border-top: 0;
+}
+.habit-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.habit-stat-nums {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-3);
+  flex: none;
+}
+.habit-strip {
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 3px;
+}
+.habit-strip i {
+  height: 14px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.habit-strip i.on {
+  background: var(--accent);
+}
+.habit-strip i.is-today:not(.on) {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+.link {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Back to today, shortcuts */
 .today-jump {
   display: inline-flex;

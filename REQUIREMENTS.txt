@@ -156,15 +156,22 @@ the AI replies with a structured code block, and the user pastes it into the app
 8.5  No AI/LLM SDKs or API keys in the codebase.
 
 
-9. OUT OF SCOPE FOR NOW (later ideas the user likes)
-----------------------------------------------------
-- Calorie/macro dashboard with weekly trend charts
-- Personalized goal calculator (TDEE, cut/maintain/bulk)
-- Supplement tracking
-- Weight and body measurement log with trend line
+9. LATER IDEAS
+--------------
+Built since the first version:
+- Weekly calorie and protein trend charts (History)
+- Maintenance calorie estimate from intake and weight trend, with a
+  suggested goal for a chosen weekly rate
+- Supplement and habit checklist with per-item streaks
+- Weight log with smoothed trend line
 - Recipe builder (per-serving nutrition from ingredients)
-- Micronutrient tracking and habit insights
-- Streaks
+- Combos (groups of foods logged together) and copying a past day
+- Logging streaks and a daily goal summary
+- Quick add ordered by time of day
+- Keyboard shortcuts and phone swipe gestures
+Still open:
+- Body measurements (waist etc.)
+- Micronutrient tracking
 - (Any later feature must still respect: no AI inside the app.)
 
 
