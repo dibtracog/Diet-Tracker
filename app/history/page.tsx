@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
+import WeeklyChart from "@/components/history/WeeklyChart";
+import { weeklyStats } from "@/lib/trends";
 import { addDays, dayLabel, shortDate, toKey } from "@/lib/dates";
-import { fmt } from "@/lib/format";
+import { fmt, round1 } from "@/lib/format";
 import { entriesFor, entryTotals, useStore, waterFor } from "@/lib/store";
 import { useToday } from "@/lib/useToday";
 
@@ -36,10 +38,11 @@ export default function HistoryPage() {
   const avgKcal = avg((r) => r.t.kcal);
   const avgProtein = avg((r) => r.t.protein);
   const onTarget = week.filter((r) => Math.abs(r.t.kcal - s.goals.kcal) <= s.goals.kcal * 0.1).length;
+  const weeks = weeklyStats(s, todayKey, 8);
 
   return (
     <div className="narrow">
-      <PageHeader eyebrow={`Last ${DAYS} days`} title="History" />
+      <PageHeader eyebrow="Your progress" title="History" />
 
       <div className="tiles">
         <div className="card tile">
@@ -62,6 +65,27 @@ export default function HistoryPage() {
         </div>
       </div>
 
+      <h2 className="section-title">Weekly trends</h2>
+      <WeeklyChart
+        title="Calories"
+        weeks={weeks}
+        pick={(w) => w.kcal}
+        goal={s.goals.kcal}
+        unit="kcal"
+        step={500}
+        color="#7ee2ae"
+      />
+      <WeeklyChart
+        title="Protein"
+        weeks={weeks}
+        pick={(w) => w.protein}
+        goal={s.goals.protein}
+        unit="g"
+        step={25}
+        color="#7fd8ae"
+      />
+
+      <h2 className="section-title">Day by day</h2>
       <section className="card">
         {rows.map(({ key, count, t, water }) => {
           const over = t.kcal > s.goals.kcal;
@@ -75,12 +99,12 @@ export default function HistoryPage() {
                 <div className="history-meta num">
                   {count ? (
                     <span>
-                      <b>{fmt(t.kcal)}</b> kcal · {fmt(t.protein)}g protein
+                      <b>{fmt(t.kcal)}</b> kcal · {fmt(t.protein)}g P
                     </span>
                   ) : (
                     <span>Nothing logged</span>
                   )}
-                  <span>{water ? `${fmt(water)} ml` : ""}</span>
+                  <span style={{ whiteSpace: "nowrap" }}>{water ? `${round1(water / 1000)} L` : ""}</span>
                 </div>
                 <div className="bar">
                   <i
