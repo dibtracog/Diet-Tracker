@@ -17,6 +17,7 @@
 import { useSyncExternalStore } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { nowTime } from "./dates";
+import { perServing, refreshItems } from "./recipe";
 import { cloudEnabled, getSupabase } from "./supabase";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +29,21 @@ export type Macros = { kcal: number; protein: number; carbs: number; fat: number
 /** Optional extra nutrients (grams, sodium in mg), mostly filled in by AI paste entries. */
 export type Extras = { fiber?: number; sugar?: number; sodium?: number };
 
+/** One ingredient in a recipe: `amount` servings of a food (numbers are per one serving). */
+export type RecipeItem = Macros & {
+  /** Library food it came from; absent for a one-off custom ingredient. */
+  foodId?: string;
+  name: string;
+  serving: string;
+  amount: number;
+};
+
+export type Recipe = {
+  /** How many servings the whole recipe makes. */
+  makes: number;
+  items: RecipeItem[];
+};
+
 export type Food = Macros &
   Extras & {
     id: string;
@@ -37,6 +53,8 @@ export type Food = Macros &
     favourite: boolean;
     uses: number;
     lastUsedAt?: number;
+    /** Set when this food is a recipe built from ingredients; macros are then per serving of it. */
+    recipe?: Recipe;
     createdAt: number;
   };
 
@@ -102,7 +120,8 @@ export type State = Data & {
   pending: number;
 };
 
-export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite"> & Extras;
+export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite" | "recipe"> &
+  Extras;
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
@@ -510,7 +529,18 @@ export function addFood(input: FoodInput): Food {
 }
 
 export function updateFood(id: string, patch: Partial<FoodInput>) {
-  update((d) => ({ ...d, foods: d.foods.map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
+  update((d) => {
+    const foods = d.foods.map((f) => (f.id === id ? { ...f, ...patch } : f));
+    // Recipes that use this food get their per-serving numbers recalculated.
+    return {
+      ...d,
+      foods: foods.map((f) => {
+        if (!f.recipe || f.id === id || !f.recipe.items.some((i) => i.foodId === id)) return f;
+        const items = refreshItems(f.recipe.items, foods);
+        return { ...f, ...perServing(items, f.recipe.makes), recipe: { ...f.recipe, items } };
+      }),
+    };
+  });
 }
 
 /** Logged entries keep their own copy of the numbers, so past days are unaffected. */

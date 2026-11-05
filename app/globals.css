@@ -1232,6 +1232,111 @@ p {
   align-items: center;
   margin-top: 12px;
 }
+/* Recipes */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.seg button {
+  height: 36px;
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-2);
+  transition: background 0.15s, color 0.15s;
+}
+.seg button.is-active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.ing-list {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0 4px 0 12px;
+  background: var(--surface-2);
+}
+.ing-row {
+  gap: 8px;
+  padding: 10px 0;
+}
+.ing-row .del {
+  margin-right: 0;
+}
+.mini-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.mini-stepper button {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  color: var(--text);
+}
+.mini-stepper button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.mini-stepper span {
+  min-width: 30px;
+  text-align: center;
+  font-weight: 650;
+}
+.mini-stepper.is-large {
+  height: 46px;
+  justify-content: space-between;
+  padding: 0 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+}
+.mini-stepper.is-large button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: var(--primary-soft);
+}
+.mini-stepper.is-large small {
+  font-weight: 500;
+  color: var(--text-3);
+  font-size: 13px;
+}
+.pick-list {
+  max-height: 46dvh;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.pick-row {
+  width: 100%;
+  text-align: left;
+  border-radius: 0;
+}
+.pick-row:hover .add-btn {
+  background: var(--primary-tint);
+}
+.recipe-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  margin-left: 6px;
+  border-radius: 99px;
+  vertical-align: 2px;
+  color: var(--carbs);
+  border: 1px solid rgba(243, 201, 105, 0.35);
+}
+
 /* Charts */
 .chart-card {
   margin-bottom: 14px;

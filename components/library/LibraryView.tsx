@@ -13,8 +13,9 @@ import { fmt } from "@/lib/format";
 import { deleteFood, logFood, removeEntry, restoreFood, toggleFavourite, useStore, type Food } from "@/lib/store";
 import { useToday } from "@/lib/useToday";
 import FoodForm from "./FoodForm";
+import RecipeForm from "./RecipeForm";
 
-const FILTERS = ["All", "Favourites", "Recent", "Most used"] as const;
+const FILTERS = ["All", "Favourites", "Recent", "Most used", "Recipes"] as const;
 type Filter = (typeof FILTERS)[number];
 
 export default function LibraryView() {
@@ -28,12 +29,14 @@ export default function LibraryView() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Food | null>(null);
   const [formKey, setFormKey] = useState(0);
+  const [kind, setKind] = useState<"food" | "recipe">("food");
   const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = s.foods.filter((f) => f.name.toLowerCase().includes(q));
     if (filter === "Favourites") list = list.filter((f) => f.favourite);
+    if (filter === "Recipes") list = list.filter((f) => f.recipe);
     if (filter === "Most used") list = [...list].sort((a, b) => b.uses - a.uses);
     else if (filter === "Recent")
       list = list.filter((f) => f.lastUsedAt).sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
@@ -45,11 +48,14 @@ export default function LibraryView() {
   const date = todayKey ? resolveDate(params.get("date"), todayKey) : null;
   const isToday = date === todayKey;
 
-  const openForm = (food: Food | null) => {
+  const openForm = (food: Food | null, newKind: "food" | "recipe" = "food") => {
     setEditing(food);
+    setKind(food?.recipe ? "recipe" : food ? "food" : newKind);
     setFormKey((k) => k + 1);
     setSheetOpen(true);
   };
+  const isRecipe = kind === "recipe";
+  const sheetTitle = editing ? (isRecipe ? "Edit recipe" : "Edit food") : isRecipe ? "New recipe" : "New food";
 
   const add = (f: Food) => {
     if (!date) return;
@@ -75,7 +81,7 @@ export default function LibraryView() {
         action={
           <button className="btn btn-primary btn-sm" onClick={() => openForm(null)}>
             <Icon name="plus" size={16} strokeWidth={2.2} />
-            New food
+            New
           </button>
         }
       />
@@ -103,7 +109,10 @@ export default function LibraryView() {
             <Icon name="library" size={24} />
           </span>
           <div className="empty-title">Your library is empty</div>
-          <div>Save the foods you eat regularly with their calories and macros, then log them in one tap.</div>
+          <div>
+            Save the foods you eat regularly with their calories and macros, then log them in one tap. Once you have a
+            few, combine them into recipes.
+          </div>
           <button className="btn btn-primary" onClick={() => openForm(null)}>
             <Icon name="plus" size={18} strokeWidth={2.2} />
             Add your first food
@@ -142,8 +151,16 @@ export default function LibraryView() {
                 <article key={f.id} className="card food-card">
                   <div className="food-top">
                     <button type="button" className="food-hit" onClick={() => openForm(f)} aria-label={`Edit ${f.name}`}>
-                      <div className="food-name">{f.name}</div>
-                      <div className="food-serving">{f.serving}</div>
+                      <div className="food-name">
+                        {f.name}
+                        {f.recipe ? <span className="recipe-badge">Recipe</span> : null}
+                      </div>
+                      <div className="food-serving">
+                        {f.serving}
+                        {f.recipe
+                          ? ` · ${f.recipe.items.length} ingredient${f.recipe.items.length === 1 ? "" : "s"}, makes ${f.recipe.makes}`
+                          : ""}
+                      </div>
                     </button>
                     <button
                       className={`star ${f.favourite ? "on" : ""}`}
@@ -177,23 +194,54 @@ export default function LibraryView() {
                   ? `No foods match “${query}”.`
                   : filter === "Recent"
                     ? "Nothing logged from your library yet."
-                    : "No favourites yet. Tap the star on a food."}
+                    : filter === "Recipes"
+                      ? "No recipes yet. Tap New, then Recipe."
+                      : "No favourites yet. Tap the star on a food."}
               </div>
             </div>
           )}
         </>
       )}
 
-      <Sheet open={sheetOpen} onClose={closeSheet} title={editing ? "Edit food" : "New food"}>
-        <FoodForm
-          key={formKey}
-          food={editing ?? undefined}
-          onSaved={(msg) => {
-            closeSheet();
-            toast.show(msg);
-          }}
-          onDelete={del}
-        />
+      <Sheet open={sheetOpen} onClose={closeSheet} title={sheetTitle}>
+        {!editing ? (
+          <div className="seg" role="tablist" aria-label="What to add">
+            {(["food", "recipe"] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={kind === k}
+                className={kind === k ? "is-active" : ""}
+                onClick={() => setKind(k)}
+              >
+                {k === "food" ? "Single food" : "Recipe"}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {isRecipe ? (
+          <RecipeForm
+            key={`r${formKey}`}
+            food={editing ?? undefined}
+            foods={s.foods}
+            onSaved={(msg) => {
+              closeSheet();
+              toast.show(msg);
+            }}
+            onDelete={del}
+          />
+        ) : (
+          <FoodForm
+            key={`f${formKey}`}
+            food={editing ?? undefined}
+            onSaved={(msg) => {
+              closeSheet();
+              toast.show(msg);
+            }}
+            onDelete={del}
+          />
+        )}
       </Sheet>
 
       {toast.node}
