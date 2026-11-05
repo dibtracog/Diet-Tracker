@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import Field from "@/components/Field";
 import { Icon } from "@/components/Icons";
-import { fmt, round1 } from "@/lib/format";
+import { amountLabel, fmt, foodPortion, round1 } from "@/lib/format";
 import {
   addCombo,
+  defaultServings,
   comboItemFrom,
   comboItems,
   itemTotals,
@@ -20,7 +21,8 @@ type Row = ComboItem & { key: string };
 let keySeq = 0;
 const withKey = (i: ComboItem): Row => ({ ...i, key: `c${++keySeq}` });
 
-const STEP = 0.5;
+/** Half a serving, or 10 g for weighed foods. */
+const stepFor = (i: { unit?: "g" }) => (i.unit === "g" ? 0.1 : 0.5);
 
 export default function ComboForm({
   combo,
@@ -53,7 +55,7 @@ export default function ComboForm({
     setItems((list) => {
       const existing = list.find((i) => i.foodId === f.id);
       return existing
-        ? list.map((i) => (i.key === existing.key ? { ...i, servings: round1(i.servings + 1) } : i))
+        ? list.map((i) => (i.key === existing.key ? { ...i, servings: round1(i.servings + defaultServings(f)) } : i))
         : [...list, withKey(comboItemFrom(f))];
     });
     setQuery("");
@@ -61,7 +63,9 @@ export default function ComboForm({
   };
 
   const setServings = (key: string, servings: number) =>
-    setItems((list) => list.map((i) => (i.key === key ? { ...i, servings: Math.max(STEP, round1(servings)) } : i)));
+    setItems((list) =>
+      list.map((i) => (i.key === key ? { ...i, servings: Math.max(stepFor(i), Math.round(servings * 100) / 100) } : i)),
+    );
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +104,7 @@ export default function ComboForm({
                     {f.name}
                   </span>
                   <span className="row-sub num" style={{ display: "block" }}>
-                    {f.serving} · {fmt(f.kcal)} kcal
+                    {foodPortion(f)} · {fmt(f.kcal * defaultServings(f))} kcal
                   </span>
                 </span>
                 <span className="add-btn">
@@ -138,15 +142,20 @@ export default function ComboForm({
                 <div className="row-main">
                   <div className="row-title">{i.name}</div>
                   <div className="row-sub num">
-                    {i.servings} × {i.serving} · {fmt(i.kcal * i.servings)} kcal
+                    {i.unit === "g" ? amountLabel(i, i.servings) : `${i.servings} × ${i.serving}`} · {fmt(i.kcal * i.servings)} kcal
                   </div>
                 </div>
                 <div className="mini-stepper">
-                  <button type="button" onClick={() => setServings(i.key, i.servings - STEP)} disabled={i.servings <= STEP} aria-label={`Less ${i.name}`}>
+                  <button
+                    type="button"
+                    onClick={() => setServings(i.key, i.servings - stepFor(i))}
+                    disabled={i.servings <= stepFor(i)}
+                    aria-label={`Less ${i.name}`}
+                  >
                     <Icon name="minus" size={16} strokeWidth={2.2} />
                   </button>
-                  <span className="num">{i.servings}</span>
-                  <button type="button" onClick={() => setServings(i.key, i.servings + STEP)} aria-label={`More ${i.name}`}>
+                  <span className="num">{i.unit === "g" ? Math.round(i.servings * 100) : i.servings}</span>
+                  <button type="button" onClick={() => setServings(i.key, i.servings + stepFor(i))} aria-label={`More ${i.name}`}>
                     <Icon name="plus" size={16} strokeWidth={2.2} />
                   </button>
                 </div>

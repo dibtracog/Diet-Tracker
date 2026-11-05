@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icons";
 import Thumb from "@/components/Thumb";
-import { fmt, portion } from "@/lib/format";
+import { amountLabel, fmt } from "@/lib/format";
 import { entryTotals, type Entry } from "@/lib/store";
 
 export default function FoodLog({
@@ -61,7 +61,7 @@ export default function FoodLog({
                     {e.name}
                   </span>
                   <span className="row-sub num" style={{ display: "block" }}>
-                    {e.time} · {portion(e.serving, e.servings)}
+                    {e.time} · {amountLabel(e, e.servings)}
                   </span>
                   <span className="row-macros num">
                     <span>

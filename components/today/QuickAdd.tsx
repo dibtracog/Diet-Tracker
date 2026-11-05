@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import AddButton from "@/components/AddButton";
-import { fmt } from "@/lib/format";
+import { fmt, foodPortion } from "@/lib/format";
 import type { QuickItem } from "@/lib/quick";
-import { comboItems, itemTotals, type Combo, type Food } from "@/lib/store";
+import { comboItems, defaultServings, itemTotals, type Combo, type Food } from "@/lib/store";
 
 export default function QuickAdd({
   items,
@@ -58,7 +58,7 @@ export default function QuickAdd({
                 <div className="row-main">
                   <div className="row-title">{f.name}</div>
                   <div className="row-sub">
-                    {f.serving} · <span className="num">{fmt(f.kcal)} kcal</span>
+                    {foodPortion(f)} · <span className="num">{fmt(f.kcal * defaultServings(f))} kcal</span>
                     {item.usual ? <span className="usual"> · usually {item.usual}</span> : null}
                   </div>
                 </div>

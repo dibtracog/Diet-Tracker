@@ -203,6 +203,7 @@ export default function SettingsPage() {
               ["flame", "Macros", `P ${fmt(g.protein)} · C ${fmt(g.carbs)} · F ${fmt(g.fat)} g`, false],
               ["droplet", "Water goal", `${fmt(g.waterMl)} ml`, true],
               ["scale", "Goal weight", g.weightKg ? `${g.weightKg} kg` : "Not set", false],
+              ["sun", "Eating window", g.windowHours ? `${g.windowHours} h max` : "Not set", false],
             ] as const
           ).map(([icon, label, value, water]) => (
             <Row

@@ -54,8 +54,12 @@ import FoodLog from "./FoodLog";
 import QuickAdd from "./QuickAdd";
 import ReuseForm from "./ReuseForm";
 import HabitsCard from "./HabitsCard";
+import WhatFits from "./WhatFits";
+import { whatFits } from "@/lib/fits";
 import HabitsForm from "./HabitsForm";
 import { habitDays, sortedHabits } from "@/lib/habits";
+import { foodPortion } from "@/lib/format";
+import { averageWindow, eatingWindow } from "@/lib/window";
 import SummaryCard from "./SummaryCard";
 import TodaySkeleton from "./TodaySkeleton";
 import WaterCard from "./WaterCard";
@@ -177,8 +181,14 @@ export default function TodayView() {
   const showSummary = entries.length > 0 || water.total > 0;
   const yesterday = addDays(todayKey, -1);
   const canCopyYesterday = isToday && entries.length === 0 && s.entries.some((e) => e.date === yesterday);
-  const quick = quickItems(s, date, todayKey, minutesOf(nowTime()));
+  const now = nowTime();
+  const quick = quickItems(s, date, todayKey, minutesOf(now));
+  const win = eatingWindow(entries);
   const reuseEntries = reuseFrom ? entriesFor(s, reuseFrom) : [];
+  // What fits: today only, once something is logged, while there's room left.
+  const fits = whatFits(s, date);
+  const showFits =
+    isToday && entries.length > 0 && fits.kcalLeft >= 100 && (s.foods.length > 0 || s.combos.length > 0);
   const habits = sortedHabits(s);
   const byHabit = habitDays(s);
   const doneOnDay = new Set(habits.filter((h) => byHabit.get(h.id)?.has(date)).map((h) => h.id));
@@ -204,7 +214,9 @@ export default function TodayView() {
 
   const add = (f: Food) => {
     const entry = logFood(f, date);
-    toast.show(`${f.name} added`, { action: { label: "Undo", onClick: () => removeEntry(entry.id) } });
+    toast.show(`${f.name}${f.unit === "g" ? ` · ${foodPortion(f)}` : ""} added`, {
+      action: { label: "Undo", onClick: () => removeEntry(entry.id) },
+    });
   };
 
   const addCombo = (c: Combo) => {
@@ -271,7 +283,9 @@ export default function TodayView() {
           <SummaryCard totals={entryTotals(entries)} goals={s.goals} />
         </div>
         <div className="area-side">
-          {showSummary && !isToday ? <DaySummary goals={goals} title={summaryTitle} isToday={false} /> : null}
+          {showSummary && !isToday ? (
+            <DaySummary goals={goals} title={summaryTitle} isToday={false} window={win} avgWindow={null} now={now} />
+          ) : null}
           <WaterCard
             total={water.total}
             goal={s.goals.waterMl}
@@ -300,7 +314,12 @@ export default function TodayView() {
             libraryHref={libraryHref}
             libraryEmpty={s.foods.length === 0 && s.combos.length === 0}
           />
-          {showSummary && isToday ? <DaySummary goals={goals} title={summaryTitle} isToday /> : null}
+          {showFits ? (
+            <WhatFits fits={fits} onAdd={(f) => (f.kind === "food" ? add(f.food) : addCombo(f.combo))} />
+          ) : null}
+          {showSummary && isToday ? (
+            <DaySummary goals={goals} title={summaryTitle} isToday window={win} avgWindow={averageWindow(s, todayKey)} now={now} />
+          ) : null}
         </div>
         <div className="area-log log-stack">
           <PendingMeals meals={s.pendingMeals} todayKey={todayKey} onRemove={discardPending} />

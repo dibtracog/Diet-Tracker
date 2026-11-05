@@ -22,7 +22,15 @@ export default function EntryForm({
   onRemove: (e: Entry) => void;
   onLogAgain: (e: Entry) => void;
 }) {
+  const weighed = entry.unit === "g";
   const [servings, setServings] = useState(entry.servings);
+  // Weighed entries are edited in grams; servings = grams ÷ 100.
+  const [gramsText, setGramsText] = useState(String(Math.round(entry.servings * 100)));
+  const setGrams = (g: number) => {
+    const v = Math.max(1, Math.round(g));
+    setGramsText(String(v));
+    setServings(v / 100);
+  };
   const [time, setTime] = useState(entry.time);
   const [d, setD] = useState<Details>({
     name: entry.name,
@@ -34,6 +42,7 @@ export default function EntryForm({
   });
   const [error, setError] = useState("");
 
+  const per100 = weighed ? "100 g" : "serving";
   const set = (k: keyof Details) => (e: React.ChangeEvent<HTMLInputElement>) => setD((p) => ({ ...p, [k]: e.target.value }));
 
   // Live preview uses whatever is typed, falling back to the saved numbers.
@@ -49,6 +58,7 @@ export default function EntryForm({
     const nums = (["kcal", "protein", "carbs", "fat"] as const).map((k) => parseNum(d[k], NaN));
     if (!nums.every((n) => n >= 0)) return setError("Calories, protein, carbs and fat must be numbers, 0 or more.");
     const [kcal, protein, carbs, fat] = nums.map(round1);
+    if (weighed && !(parseNum(gramsText, NaN) > 0)) return setError("Enter how many grams you had.");
     const patch: EntryPatch = {
       servings,
       time: /^\d{2}:\d{2}$/.test(time) ? time : entry.time,
@@ -69,9 +79,42 @@ export default function EntryForm({
 
       <div className="entry-head">
         <div className="t">{d.name || entry.name}</div>
-        <div className="s">1 serving = {d.serving || entry.serving}</div>
+        <div className="s">{weighed ? "Nutrition per 100 g" : `1 serving = ${d.serving || entry.serving}`}</div>
       </div>
 
+      {weighed ? (
+        <div className="field">
+          <span className="field-label">Amount</span>
+          <div className="stepper">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setGrams(servings * 100 - 10)}
+              disabled={servings * 100 <= 10}
+              aria-label="10 g less"
+            >
+              <Icon name="minus" size={20} strokeWidth={2.2} />
+            </button>
+            <span className="input-wrap has-suffix stepper-input">
+              <input
+                className="input num"
+                inputMode="numeric"
+                value={gramsText}
+                onChange={(e) => {
+                  setGramsText(e.target.value);
+                  const g = parseNum(e.target.value, NaN);
+                  if (g > 0) setServings(g / 100);
+                }}
+                aria-label="Grams"
+              />
+              <span className="input-suffix">g</span>
+            </span>
+            <button type="button" className="icon-btn" onClick={() => setGrams(servings * 100 + 10)} aria-label="10 g more">
+              <Icon name="plus" size={20} strokeWidth={2.2} />
+            </button>
+          </div>
+        </div>
+      ) : (
       <div className="field">
         <span className="field-label">Servings</span>
         <div className="stepper">
@@ -90,6 +133,7 @@ export default function EntryForm({
           </button>
         </div>
       </div>
+      )}
 
       <div className="preview-macros num">
         <div className="pm">
@@ -119,12 +163,12 @@ export default function EntryForm({
         </summary>
         <div className="form" style={{ marginTop: 12 }}>
           <Field label="Name" value={d.name} onChange={set("name")} autoComplete="off" />
-          <Field label="One serving is" value={d.serving} onChange={set("serving")} autoComplete="off" />
+          {weighed ? null : <Field label="One serving is" value={d.serving} onChange={set("serving")} autoComplete="off" />}
           <div className="grid-2">
-            <Field label="Calories / serving" value={d.kcal} onChange={set("kcal")} inputMode="decimal" suffix="kcal" />
-            <Field label="Protein / serving" value={d.protein} onChange={set("protein")} inputMode="decimal" suffix="g" />
-            <Field label="Carbs / serving" value={d.carbs} onChange={set("carbs")} inputMode="decimal" suffix="g" />
-            <Field label="Fat / serving" value={d.fat} onChange={set("fat")} inputMode="decimal" suffix="g" />
+            <Field label={`Calories / ${per100}`} value={d.kcal} onChange={set("kcal")} inputMode="decimal" suffix="kcal" />
+            <Field label={`Protein / ${per100}`} value={d.protein} onChange={set("protein")} inputMode="decimal" suffix="g" />
+            <Field label={`Carbs / ${per100}`} value={d.carbs} onChange={set("carbs")} inputMode="decimal" suffix="g" />
+            <Field label={`Fat / ${per100}`} value={d.fat} onChange={set("fat")} inputMode="decimal" suffix="g" />
           </div>
         </div>
       </details>

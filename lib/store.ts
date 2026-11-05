@@ -17,7 +17,7 @@
 import { useSyncExternalStore } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { nowTime } from "./dates";
-import { perServing, refreshItems } from "./recipe";
+import { recipeNutrition, refreshItems } from "./recipe";
 import { cloudEnabled, getSupabase } from "./supabase";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +29,12 @@ export type Macros = { kcal: number; protein: number; carbs: number; fat: number
 /** Optional extra nutrients (grams, sodium in mg), mostly filled in by AI paste entries. */
 export type Extras = { fiber?: number; sugar?: number; sodium?: number };
 
+/**
+ * "g" means the numbers are per 100 g and the amount is weighed: servings (or
+ * amount) is then grams ÷ 100, e.g. 1.8 for 180 g.
+ */
+export type Unit = "g";
+
 /** One ingredient in a recipe: `amount` servings of a food (numbers are per one serving). */
 export type RecipeItem = Macros & {
   /** Library food it came from; absent for a one-off custom ingredient. */
@@ -36,12 +42,15 @@ export type RecipeItem = Macros & {
   name: string;
   serving: string;
   amount: number;
+  unit?: Unit;
 };
 
 export type Recipe = {
   /** How many servings the whole recipe makes. */
   makes: number;
   items: RecipeItem[];
+  /** Weight of the whole cooked recipe. When set, the recipe is logged by grams. */
+  cookedGrams?: number;
 };
 
 export type Food = Macros &
@@ -55,6 +64,10 @@ export type Food = Macros &
     lastUsedAt?: number;
     /** Set when this food is a recipe built from ingredients; macros are then per serving of it. */
     recipe?: Recipe;
+    /** "g": macros are per 100 g and the food is logged by weight. */
+    unit?: Unit;
+    /** For foods logged by weight: the usual portion, logged by one tap. */
+    defaultGrams?: number;
     createdAt: number;
   };
 
@@ -77,6 +90,8 @@ export type Entry = Macros &
     photoId?: string;
     /** Set when this entry was logged as part of a combo. */
     comboId?: string;
+    /** "g": numbers are per 100 g and servings = grams ÷ 100. */
+    unit?: Unit;
     createdAt: number;
   };
 
@@ -88,6 +103,7 @@ export type ComboItem = Macros &
     name: string;
     serving: string;
     servings: number;
+    unit?: Unit;
   };
 
 /** A saved group of foods logged together in one tap, each as its own entry (e.g. "Usual breakfast"). */
@@ -121,7 +137,27 @@ export type Habit = { id: string; name: string; order: number; createdAt: number
 /** One habit done on one day. The id is `${habitId}_${date}`, so a day can only be ticked once. */
 export type HabitLog = { id: string; habitId: string; date: string; createdAt: number };
 
-export type Goals = Macros & { waterMl: number; /** Optional target body weight. */ weightKg?: number };
+export const MEASURES = [
+  { kind: "waist", label: "Waist", unit: "cm" },
+  { kind: "chest", label: "Chest", unit: "cm" },
+  { kind: "hips", label: "Hips", unit: "cm" },
+  { kind: "arms", label: "Arms", unit: "cm" },
+  { kind: "thighs", label: "Thighs", unit: "cm" },
+  { kind: "neck", label: "Neck", unit: "cm" },
+  { kind: "bodyfat", label: "Body fat", unit: "%" },
+] as const;
+export type MeasureKind = (typeof MEASURES)[number]["kind"];
+
+/** One body measurement on one day. Logging the same kind again that day replaces it. */
+export type Measurement = { id: string; date: string; kind: MeasureKind; value: number; createdAt: number };
+
+export type Goals = Macros & {
+  waterMl: number;
+  /** Optional target body weight. */
+  weightKg?: number;
+  /** Optional longest eating window in hours, first to last meal (8 for 16:8). */
+  windowHours?: number;
+};
 
 export type Data = {
   version: 1;
@@ -133,6 +169,7 @@ export type Data = {
   combos: Combo[];
   habits: Habit[];
   habitLogs: HabitLog[];
+  measurements: Measurement[];
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
   promptNotes: string;
@@ -151,12 +188,15 @@ export type State = Data & {
   pending: number;
 };
 
-export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite" | "recipe"> &
+export type FoodInput = Pick<
+  Food,
+  "name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "favourite" | "recipe" | "unit" | "defaultGrams"
+> &
   Extras;
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
-type Kind = "food" | "entry" | "pending" | "water" | "weight" | "combo" | "habit" | "habitlog" | "profile";
+type Kind = "food" | "entry" | "pending" | "water" | "weight" | "combo" | "habit" | "habitlog" | "measure" | "profile";
 type Op = { type: "upsert"; id: string; kind: Kind; data: unknown } | { type: "delete"; id: string };
 
 // ---------------------------------------------------------------------------
@@ -179,6 +219,7 @@ const emptyData = (): Data => ({
   combos: [],
   habits: [],
   habitLogs: [],
+  measurements: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
 });
@@ -210,6 +251,7 @@ const dataOf = (s: State): Data => ({
   combos: s.combos,
   habits: s.habits,
   habitLogs: s.habitLogs,
+  measurements: s.measurements,
   goals: s.goals,
   promptNotes: s.promptNotes,
 });
@@ -239,6 +281,9 @@ function normalize(raw: unknown): Data | null {
       .filter((h) => typeof h.name === "string")
       .map((h, i) => ({ ...h, order: Number.isFinite(h.order) ? h.order : i })),
     habitLogs: list<HabitLog>(r.habitLogs).filter((l) => typeof l.habitId === "string" && typeof l.date === "string"),
+    measurements: list<Measurement>(r.measurements).filter(
+      (m) => Number(m.value) > 0 && MEASURES.some((k) => k.kind === m.kind),
+    ),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
   };
@@ -358,8 +403,9 @@ function diff(prev: Data, next: Data): Op[] {
   const ops: Op[] = [];
   const collections: [
     Kind,
-    "foods" | "entries" | "pendingMeals" | "water" | "weights" | "combos" | "habits" | "habitLogs",
+    "foods" | "entries" | "pendingMeals" | "water" | "weights" | "combos" | "habits" | "habitLogs" | "measurements",
   ][] = [
+    ["measure", "measurements"],
     ["food", "foods"],
     ["entry", "entries"],
     ["pending", "pendingMeals"],
@@ -443,6 +489,7 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
     combos: rows.filter((r) => r.kind === "combo").map((r) => r.data),
     habits: rows.filter((r) => r.kind === "habit").map((r) => r.data),
     habitLogs: rows.filter((r) => r.kind === "habitlog").map((r) => r.data),
+    measurements: rows.filter((r) => r.kind === "measure").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
   })!;
@@ -467,6 +514,7 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     combos: addMissing(server.combos, local.combos),
     habits: addMissing(server.habits, local.habits),
     habitLogs: addMissing(server.habitLogs, local.habitLogs),
+    measurements: addMissing(server.measurements, local.measurements),
     ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
   };
   // Keep a copy of the old local data, just in case.
@@ -597,7 +645,8 @@ export function updateFood(id: string, patch: Partial<FoodInput>) {
       foods: foods.map((f) => {
         if (!f.recipe || f.id === id || !f.recipe.items.some((i) => i.foodId === id)) return f;
         const items = refreshItems(f.recipe.items, foods);
-        return { ...f, ...perServing(items, f.recipe.makes), recipe: { ...f.recipe, items } };
+        const recipe = { ...f.recipe, items };
+        return { ...f, ...recipeNutrition(recipe), recipe };
       }),
     };
   });
@@ -620,7 +669,11 @@ export function toggleFavourite(id: string) {
 // Entries (food log)
 // ---------------------------------------------------------------------------
 
-export function logFood(food: Food, date: string, servings = 1): Entry {
+/** How much one tap logs: one serving, or the usual weight for foods logged by grams. */
+export const defaultServings = (food: Pick<Food, "unit" | "defaultGrams">) =>
+  food.unit === "g" ? (food.defaultGrams || 100) / 100 : 1;
+
+export function logFood(food: Food, date: string, servings = defaultServings(food)): Entry {
   const entry: Entry = {
     id: uid(),
     date,
@@ -628,6 +681,7 @@ export function logFood(food: Food, date: string, servings = 1): Entry {
     name: food.name,
     serving: food.serving,
     servings,
+    ...(food.unit ? { unit: food.unit } : {}),
     kcal: food.kcal,
     protein: food.protein,
     carbs: food.carbs,
@@ -734,7 +788,8 @@ export function comboItemFrom(e: Entry | (Food & { servings?: number })): ComboI
     foodId: isEntry ? e.foodId : e.id,
     name: e.name,
     serving: e.serving,
-    servings: e.servings ?? 1,
+    servings: e.servings ?? defaultServings(e),
+    ...(e.unit ? { unit: e.unit } : {}),
     kcal: e.kcal,
     protein: e.protein,
     carbs: e.carbs,
@@ -846,6 +901,44 @@ export function removeWeight(id: string) {
 /** Undo helper: puts a weigh-in back (and drops whatever replaced it that day). */
 export function restoreWeight(log: WeightLog) {
   update((d) => ({ ...d, weights: [...d.weights.filter((w) => w.date !== log.date), log] }));
+}
+
+// ---------------------------------------------------------------------------
+// Body measurements
+// ---------------------------------------------------------------------------
+
+/** Saves the measurements for a day; any already logged that day for the same kind are replaced. */
+export function logMeasurements(
+  date: string,
+  values: Partial<Record<MeasureKind, number>>,
+): { added: Measurement[]; replaced: Measurement[] } {
+  const now = Date.now();
+  const added: Measurement[] = (Object.entries(values) as [MeasureKind, number][]).map(([kind, value], i) => ({
+    id: uid(),
+    date,
+    kind,
+    value,
+    createdAt: now + i,
+  }));
+  const kinds = new Set(added.map((m) => m.kind));
+  const replaced = state.measurements.filter((m) => m.date === date && kinds.has(m.kind));
+  update((d) => ({
+    ...d,
+    measurements: [...d.measurements.filter((m) => !(m.date === date && kinds.has(m.kind))), ...added],
+  }));
+  return { added, replaced };
+}
+
+export function removeMeasurements(ids: string[]) {
+  const drop = new Set(ids);
+  update((d) => ({ ...d, measurements: d.measurements.filter((m) => !drop.has(m.id)) }));
+}
+
+export function restoreMeasurements(list: Measurement[]) {
+  update((d) => {
+    const have = new Set(d.measurements.map((m) => m.id));
+    return { ...d, measurements: [...d.measurements, ...list.filter((m) => !have.has(m.id))] };
+  });
 }
 
 // ---------------------------------------------------------------------------

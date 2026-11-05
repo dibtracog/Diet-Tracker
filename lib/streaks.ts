@@ -1,5 +1,6 @@
 import { addDays } from "./dates";
 import { entriesFor, entryTotals, waterFor, type Data } from "./store";
+import { eatingWindow } from "./window";
 
 /** Days that have at least one food entry. */
 export function loggedDays(d: Data): Set<string> {
@@ -47,7 +48,11 @@ export type DayGoals = {
   kcal: GoalCheck;
   protein: GoalCheck;
   water: GoalCheck;
+  /** Eating window in minutes against the target, when a target is set. */
+  window: GoalCheck | null;
   met: number;
+  /** How many goals are being checked (3, or 4 with an eating window target). */
+  total: number;
 };
 
 /**
@@ -62,11 +67,19 @@ export function dayGoals(d: Data, date: string): DayGoals {
   const kcal = { value: t.kcal, goal: g.kcal, ok: g.kcal > 0 && entries.length > 0 && Math.abs(t.kcal - g.kcal) <= g.kcal * 0.1 };
   const protein = { value: t.protein, goal: g.protein, ok: g.protein > 0 && t.protein >= g.protein * 0.95 };
   const waterCheck = { value: water, goal: g.waterMl, ok: g.waterMl > 0 && water >= g.waterMl };
+  const w = eatingWindow(entries);
+  const window =
+    g.windowHours && g.windowHours > 0
+      ? { value: w?.minutes ?? 0, goal: g.windowHours * 60, ok: !!w && w.minutes <= g.windowHours * 60 }
+      : null;
+  const checks = [kcal, protein, waterCheck, ...(window ? [window] : [])];
   return {
     items: entries.length,
     kcal,
     protein,
     water: waterCheck,
-    met: [kcal, protein, waterCheck].filter((c) => c.ok).length,
+    window,
+    met: checks.filter((c) => c.ok).length,
+    total: checks.length,
   };
 }

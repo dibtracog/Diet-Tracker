@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Field from "@/components/Field";
 import { Icon } from "@/components/Icons";
-import { fmt, portion } from "@/lib/format";
+import { amountLabel, fmt } from "@/lib/format";
 import { addCombo, comboItemFrom, copyEntries, entryTotals, type Entry } from "@/lib/store";
 
 /**
@@ -97,7 +97,7 @@ export default function ReuseForm({
                   {e.name}
                 </span>
                 <span className="row-sub num" style={{ display: "block" }}>
-                  {e.time} · {portion(e.serving, e.servings)}
+                  {e.time} · {amountLabel(e, e.servings)}
                 </span>
               </span>
               <span className="row-kcal num">

@@ -9,7 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
 import { resolveDate, shortDate, toKey } from "@/lib/dates";
-import { fmt } from "@/lib/format";
+import { fmt, foodPortion } from "@/lib/format";
 import {
   comboItems,
   deleteCombo,
@@ -107,7 +107,7 @@ export default function LibraryView() {
   const add = (f: Food) => {
     if (!date) return;
     const entry = logFood(f, date);
-    toast.show(`${f.name} added to ${isToday ? "today" : shortDate(date)}`, {
+    toast.show(`${f.name}${f.unit === "g" ? ` · ${foodPortion(f)}` : ""} added to ${isToday ? "today" : shortDate(date)}`, {
       action: { label: "Undo", onClick: () => removeEntry(entry.id) },
     });
   };
@@ -262,7 +262,7 @@ export default function LibraryView() {
                         {f.recipe ? <span className="recipe-badge">Recipe</span> : null}
                       </div>
                       <div className="food-serving">
-                        {f.serving}
+                        {f.unit === "g" ? `per 100 g · usually ${foodPortion(f)}` : f.serving}
                         {f.recipe
                           ? ` · ${f.recipe.items.length} ingredient${f.recipe.items.length === 1 ? "" : "s"}, makes ${f.recipe.makes}`
                           : ""}

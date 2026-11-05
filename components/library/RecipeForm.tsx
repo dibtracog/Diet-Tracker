@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import Field, { parseNum } from "@/components/Field";
 import { Icon } from "@/components/Icons";
-import { fmt, round1 } from "@/lib/format";
-import { itemFromFood, perServing, recipeTotals, refreshItems } from "@/lib/recipe";
+import { amountLabel, fmt, foodPortion, round1 } from "@/lib/format";
+import { itemFromFood, recipeNutrition, recipeTotals, refreshItems } from "@/lib/recipe";
 import { addFood, updateFood, type Food, type RecipeItem } from "@/lib/store";
 
 type Row = RecipeItem & { key: string };
@@ -13,7 +13,8 @@ type View = "form" | "pick" | "custom";
 let keySeq = 0;
 const withKey = (i: RecipeItem): Row => ({ ...i, key: `k${++keySeq}` });
 
-const STEP = 0.5;
+/** Half a serving, or 10 g for weighed ingredients. */
+const stepFor = (i: { unit?: "g" }) => (i.unit === "g" ? 0.1 : 0.5);
 
 export default function RecipeForm({
   food,
@@ -27,10 +28,11 @@ export default function RecipeForm({
   onDelete: (food: Food) => void;
 }) {
   const [name, setName] = useState(food?.name ?? "");
-  const [serving, setServing] = useState(food?.serving ?? "1 bowl");
+  const [serving, setServing] = useState(food?.unit === "g" ? "1 serving" : (food?.serving ?? "1 bowl"));
   const [makes, setMakes] = useState(food?.recipe?.makes ?? 2);
   const [items, setItems] = useState<Row[]>(() => refreshItems(food?.recipe?.items ?? [], foods).map(withKey));
   const [favourite, setFavourite] = useState(food?.favourite ?? false);
+  const [cooked, setCooked] = useState(food?.recipe?.cookedGrams ? String(food.recipe.cookedGrams) : "");
   const [view, setView] = useState<View>("form");
   const [query, setQuery] = useState("");
   const [custom, setCustom] = useState({ name: "", serving: "", kcal: "", protein: "", carbs: "", fat: "" });
@@ -38,7 +40,10 @@ export default function RecipeForm({
   const [armed, setArmed] = useState(false);
 
   const total = recipeTotals(items);
-  const per = perServing(items, makes);
+  const cookedGrams = Math.round(parseNum(cooked, NaN));
+  const hasCooked = cookedGrams > 0;
+  const plainItems = items.map(({ key: _key, ...item }) => item);
+  const per = recipeNutrition({ makes, items: plainItems, ...(hasCooked ? { cookedGrams } : {}) });
 
   const choices = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -51,7 +56,7 @@ export default function RecipeForm({
     setItems((list) => {
       const existing = list.find((i) => i.foodId === f.id);
       return existing
-        ? list.map((i) => (i.key === existing.key ? { ...i, amount: round1(i.amount + 1) } : i))
+        ? list.map((i) => (i.key === existing.key ? { ...i, amount: round1(i.amount + itemFromFood(f).amount) } : i))
         : [...list, withKey(itemFromFood(f))];
     });
     setQuery("");
@@ -59,7 +64,9 @@ export default function RecipeForm({
   };
 
   const setAmount = (key: string, amount: number) =>
-    setItems((list) => list.map((i) => (i.key === key ? { ...i, amount: Math.max(STEP, round1(amount)) } : i)));
+    setItems((list) =>
+      list.map((i) => (i.key === key ? { ...i, amount: Math.max(stepFor(i), Math.round(amount * 100) / 100) } : i)),
+    );
 
   const addCustom = () => {
     const kcal = parseNum(custom.kcal, NaN);
@@ -89,12 +96,14 @@ export default function RecipeForm({
     e.preventDefault();
     if (!name.trim()) return setError("Give the recipe a name.");
     if (!items.length) return setError("Add at least one ingredient.");
+    if (cooked.trim() && !(cookedGrams > 0 && cookedGrams <= 50000)) return setError("Cooked weight should be in grams, e.g. 1200.");
+    const { serving: weighed, ...nutrition } = per;
     const input = {
       name: name.trim(),
-      serving: serving.trim() || "1 serving",
-      ...per,
+      serving: weighed ?? (serving.trim() || "1 serving"),
+      ...nutrition,
       favourite,
-      recipe: { makes, items: items.map(({ key: _key, ...item }) => item) },
+      recipe: { makes, items: plainItems, ...(hasCooked ? { cookedGrams } : {}) },
     };
     if (food) {
       updateFood(food.id, input);
@@ -129,7 +138,7 @@ export default function RecipeForm({
                     {f.name}
                   </span>
                   <span className="row-sub num" style={{ display: "block" }}>
-                    {f.serving} · {fmt(f.kcal)} kcal
+                    {foodPortion(f)} · {fmt(f.kcal * (f.unit === "g" ? (f.defaultGrams || 100) / 100 : 1))} kcal
                   </span>
                 </span>
                 <span className="add-btn">
@@ -205,15 +214,20 @@ export default function RecipeForm({
                 <div className="row-main">
                   <div className="row-title">{i.name}</div>
                   <div className="row-sub num">
-                    {i.amount} × {i.serving} · {fmt(i.kcal * i.amount)} kcal
+                    {i.unit === "g" ? amountLabel(i, i.amount) : `${i.amount} × ${i.serving}`} · {fmt(i.kcal * i.amount)} kcal
                   </div>
                 </div>
                 <div className="mini-stepper">
-                  <button type="button" onClick={() => setAmount(i.key, i.amount - STEP)} disabled={i.amount <= STEP} aria-label={`Less ${i.name}`}>
+                  <button
+                    type="button"
+                    onClick={() => setAmount(i.key, i.amount - stepFor(i))}
+                    disabled={i.amount <= stepFor(i)}
+                    aria-label={`Less ${i.name}`}
+                  >
                     <Icon name="minus" size={16} strokeWidth={2.2} />
                   </button>
-                  <span className="num">{i.amount}</span>
-                  <button type="button" onClick={() => setAmount(i.key, i.amount + STEP)} aria-label={`More ${i.name}`}>
+                  <span className="num">{i.unit === "g" ? Math.round(i.amount * 100) : i.amount}</span>
+                  <button type="button" onClick={() => setAmount(i.key, i.amount + stepFor(i))} aria-label={`More ${i.name}`}>
                     <Icon name="plus" size={16} strokeWidth={2.2} />
                   </button>
                 </div>
@@ -253,12 +267,32 @@ export default function RecipeForm({
             </button>
           </div>
         </div>
-        <Field label="One serving is" value={serving} onChange={(e) => setServing(e.target.value)} placeholder="e.g. 1 bowl" autoComplete="off" />
+        {hasCooked ? (
+          <div className="field">
+            <span className="field-label">One serving is about</span>
+            <div className="mini-stepper is-large" style={{ justifyContent: "center" }}>
+              <span className="num">
+                {fmt(per.defaultGrams ?? 0)} <small>g</small>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <Field label="One serving is" value={serving} onChange={(e) => setServing(e.target.value)} placeholder="e.g. 1 bowl" autoComplete="off" />
+        )}
       </div>
+
+      <Field
+        label="Cooked weight of the whole pot (optional)"
+        value={cooked}
+        onChange={(e) => setCooked(e.target.value)}
+        inputMode="numeric"
+        placeholder="Weigh it to log by grams"
+        suffix="g"
+      />
 
       <div>
         <div className="field-label" style={{ marginBottom: 6 }}>
-          Per serving <span className="muted">· whole recipe {fmt(total.kcal)} kcal</span>
+          {hasCooked ? "Per 100 g" : "Per serving"} <span className="muted">· whole recipe {fmt(total.kcal)} kcal</span>
         </div>
         <div className="preview-macros num">
           <div className="pm">

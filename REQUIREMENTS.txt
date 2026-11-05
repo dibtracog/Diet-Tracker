@@ -169,8 +169,12 @@ Built since the first version:
 - Logging streaks and a daily goal summary
 - Quick add ordered by time of day
 - Keyboard shortcuts and phone swipe gestures
+- Logging by grams (foods per 100 g; recipes by cooked weight)
+- "What fits?" suggestions for the calories left today
+- Month calendar coloured by how each day went
+- Body measurements (waist, chest, arms, body fat...) with trends
+- Eating window (first to last meal) with an optional target
 Still open:
-- Body measurements (waist etc.)
 - Micronutrient tracking
 - (Any later feature must still respect: no AI inside the app.)
 
