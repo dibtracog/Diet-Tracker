@@ -169,6 +169,7 @@ export default function SettingsPage() {
               ["target", "Daily calories", `${fmt(g.kcal)} kcal`, false],
               ["flame", "Macros", `P ${fmt(g.protein)} · C ${fmt(g.carbs)} · F ${fmt(g.fat)} g`, false],
               ["droplet", "Water goal", `${fmt(g.waterMl)} ml`, true],
+              ["scale", "Goal weight", g.weightKg ? `${g.weightKg} kg` : "Not set", false],
             ] as const
           ).map(([icon, label, value, water]) => (
             <Row

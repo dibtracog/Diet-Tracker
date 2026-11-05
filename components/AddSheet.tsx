@@ -11,6 +11,7 @@ const ACTIONS: Action[] = [
   { href: "/library", title: "From your library", sub: "One tap on a food you eat often", icon: "library" },
   { href: "/paste", title: "Paste AI entry", sub: "Paste the code your AI gave you", icon: "clipboard" },
   { href: "/#water", title: "Log water", sub: "Quick-add a glass or bottle", icon: "droplet", water: true },
+  { href: "/history?log=weight", title: "Log weight", sub: "Today's weigh-in", icon: "scale" },
 ];
 
 export default function AddSheet({

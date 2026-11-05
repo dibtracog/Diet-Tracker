@@ -8,7 +8,7 @@
 create table if not exists public.records (
   user_id    uuid        not null default auth.uid() references auth.users (id) on delete cascade,
   id         text        not null,
-  kind       text        not null check (kind in ('food', 'entry', 'pending', 'water', 'profile')),
+  kind       text        not null check (kind in ('food', 'entry', 'pending', 'water', 'weight', 'profile')),
   data       jsonb       not null,
   updated_at timestamptz not null default now(),
   primary key (user_id, id)

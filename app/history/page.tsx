@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import PageHeader from "@/components/PageHeader";
 import WeeklyChart from "@/components/history/WeeklyChart";
+import WeightSection from "@/components/history/WeightSection";
 import { weeklyStats } from "@/lib/trends";
 import { addDays, dayLabel, shortDate, toKey } from "@/lib/dates";
 import { fmt, round1 } from "@/lib/format";
@@ -64,6 +66,11 @@ export default function HistoryPage() {
           </div>
         </div>
       </div>
+
+      <h2 className="section-title">Body</h2>
+      <Suspense>
+        <WeightSection weights={s.weights} goals={s.goals} todayKey={todayKey} />
+      </Suspense>
 
       <h2 className="section-title">Weekly trends</h2>
       <WeeklyChart

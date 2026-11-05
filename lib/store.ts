@@ -72,7 +72,10 @@ export type PendingMeal = {
 
 export type WaterLog = { id: string; date: string; ml: number; createdAt: number };
 
-export type Goals = Macros & { waterMl: number };
+/** One weigh-in per day; logging again for the same day replaces it. */
+export type WeightLog = { id: string; date: string; kg: number; createdAt: number };
+
+export type Goals = Macros & { waterMl: number; /** Optional target body weight. */ weightKg?: number };
 
 export type Data = {
   version: 1;
@@ -80,6 +83,7 @@ export type Data = {
   entries: Entry[];
   pendingMeals: PendingMeal[];
   water: WaterLog[];
+  weights: WeightLog[];
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
   promptNotes: string;
@@ -102,7 +106,7 @@ export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "ca
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
-type Kind = "food" | "entry" | "pending" | "water" | "profile";
+type Kind = "food" | "entry" | "pending" | "water" | "weight" | "profile";
 type Op = { type: "upsert"; id: string; kind: Kind; data: unknown } | { type: "delete"; id: string };
 
 // ---------------------------------------------------------------------------
@@ -121,6 +125,7 @@ const emptyData = (): Data => ({
   entries: [],
   pendingMeals: [],
   water: [],
+  weights: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
 });
@@ -148,6 +153,7 @@ const dataOf = (s: State): Data => ({
   entries: s.entries,
   pendingMeals: s.pendingMeals,
   water: s.water,
+  weights: s.weights,
   goals: s.goals,
   promptNotes: s.promptNotes,
 });
@@ -165,6 +171,7 @@ function normalize(raw: unknown): Data | null {
     entries: list<Entry>(r.entries).map((e) => ({ ...e, servings: Number(e.servings) || 1 })),
     pendingMeals: list<PendingMeal>(r.pendingMeals),
     water: list<WaterLog>(r.water),
+    weights: list<WeightLog>(r.weights).filter((w) => Number(w.kg) > 0),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
   };
@@ -282,11 +289,12 @@ export async function signOut() {
 /** Works out which records changed between two versions of the data. */
 function diff(prev: Data, next: Data): Op[] {
   const ops: Op[] = [];
-  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water"][] = [
+  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water" | "weights"][] = [
     ["food", "foods"],
     ["entry", "entries"],
     ["pending", "pendingMeals"],
     ["water", "water"],
+    ["weight", "weights"],
   ];
   for (const [kind, key] of collections) {
     const before = new Map<string, unknown>(prev[key].map((r) => [r.id, r]));
@@ -358,6 +366,7 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
     entries: rows.filter((r) => r.kind === "entry").map((r) => r.data),
     pendingMeals: rows.filter((r) => r.kind === "pending").map((r) => r.data),
     water: rows.filter((r) => r.kind === "water").map((r) => r.data),
+    weights: rows.filter((r) => r.kind === "weight").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
   })!;
@@ -378,6 +387,7 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     entries: addMissing(server.entries, local.entries),
     pendingMeals: addMissing(server.pendingMeals, local.pendingMeals),
     water: addMissing(server.water, local.water),
+    weights: addMissing(server.weights, local.weights),
     ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
   };
   // Keep a copy of the old local data, just in case.
@@ -630,6 +640,27 @@ export function undoWater(date: string) {
     const last = forDay.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a));
     return { ...d, water: d.water.filter((w) => w.id !== last.id) };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Weight
+// ---------------------------------------------------------------------------
+
+/** Logs a weigh-in. Replaces any weigh-in already logged for that day. */
+export function logWeight(date: string, kg: number): { added: WeightLog; replaced?: WeightLog } {
+  const replaced = state.weights.find((w) => w.date === date);
+  const added: WeightLog = { id: uid(), date, kg, createdAt: Date.now() };
+  update((d) => ({ ...d, weights: [...d.weights.filter((w) => w.date !== date), added] }));
+  return { added, replaced };
+}
+
+export function removeWeight(id: string) {
+  update((d) => ({ ...d, weights: d.weights.filter((w) => w.id !== id) }));
+}
+
+/** Undo helper: puts a weigh-in back (and drops whatever replaced it that day). */
+export function restoreWeight(log: WeightLog) {
+  update((d) => ({ ...d, weights: [...d.weights.filter((w) => w.date !== log.date), log] }));
 }
 
 // ---------------------------------------------------------------------------
