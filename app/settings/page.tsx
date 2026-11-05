@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import GoalsForm from "@/components/settings/GoalsForm";
 import PromptNotesForm from "@/components/settings/PromptNotesForm";
 import { copyText } from "@/lib/clipboard";
+import { downloadFile, logToCsv } from "@/lib/download";
 import { FORMAT_EXAMPLE } from "@/lib/importCode";
 import Sheet from "@/components/Sheet";
 import { useToast } from "@/components/Toast";
@@ -98,16 +99,14 @@ export default function SettingsPage() {
   const dash = s.ready ? null : " ";
 
   const download = () => {
-    const blob = new Blob([exportJSON()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `diet-tracker-backup-${toKey(new Date())}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadFile(`diet-tracker-backup-${toKey(new Date())}.json`, exportJSON(), "application/json");
     toast.show("Backup downloaded");
+  };
+
+  const downloadCsv = () => {
+    if (!s.entries.length) return toast.show("Nothing logged yet", { icon: "x" });
+    downloadFile(`diet-tracker-log-${toKey(new Date())}.csv`, logToCsv(s), "text/csv;charset=utf-8");
+    toast.show("Food log downloaded");
   };
 
   const pickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,13 +213,15 @@ export default function SettingsPage() {
       <section className="group">
         <h2 className="group-title">Data</h2>
         <div className="card">
+          <Row icon="file" label="Export food log" value="CSV" onClick={downloadCsv} />
           <Row icon="download" label="Export backup" value="JSON" onClick={download} />
           <Row icon="upload" label="Restore from backup" value="JSON" onClick={() => fileRef.current?.click()} />
         </div>
         <p className="storage-note">
           {s.auth === "signedIn"
             ? "Your data is saved to your account and shared between your devices. A copy is kept on this device so the app works offline."
-            : "Your data is saved in this browser on this device only. Export a backup now and then so nothing is lost."}
+            : "Your data is saved in this browser on this device only. Export a backup now and then so nothing is lost."}{" "}
+          Meal photos stay on the device that took them and aren&apos;t part of the backup file.
         </p>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={pickFile} />
       </section>

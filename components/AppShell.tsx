@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icons";
 import AddSheet from "./AddSheet";
 import LoginScreen from "./LoginScreen";
+import PhotoMealForm from "./PhotoMealForm";
+import Sheet from "./Sheet";
 import TodayDate from "./TodayDate";
+import { useToast } from "./Toast";
 import { useStore } from "@/lib/store";
 
 type NavItem = { href: string; label: string; icon: IconName };
@@ -23,6 +26,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [addOpen, setAddOpen] = useState(false);
   const closeAdd = useCallback(() => setAddOpen(false), []);
   const { auth } = useStore();
+  const toast = useToast();
+
+  // "Snap a photo": the phone offers its camera or gallery.
+  const photoInput = useRef<HTMLInputElement>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoKey, setPhotoKey] = useState(0);
+  const closePhoto = useCallback(() => setPhotoOpen(false), []);
+  const pickPhoto = () => {
+    setAddOpen(false);
+    photoInput.current?.click();
+  };
 
   // With cloud sync on, nothing is shown until you're signed in.
   if (auth === "signedOut") return <LoginScreen />;
@@ -88,7 +103,35 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {tab(NAV[3])}
       </nav>
 
-      <AddSheet open={addOpen} onClose={closeAdd} />
+      <AddSheet open={addOpen} onClose={closeAdd} onPickPhoto={pickPhoto} />
+
+      <input
+        ref={photoInput}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          setPhoto(file);
+          setPhotoKey((k) => k + 1);
+          setPhotoOpen(true);
+        }}
+      />
+      <Sheet open={photoOpen} onClose={closePhoto} title="Photo meal">
+        {photo ? (
+          <PhotoMealForm
+            key={photoKey}
+            file={photo}
+            onDone={(msg) => {
+              closePhoto();
+              if (msg) toast.show(msg, { icon: "camera" });
+            }}
+          />
+        ) : null}
+      </Sheet>
+      {toast.node}
     </div>
   );
 }

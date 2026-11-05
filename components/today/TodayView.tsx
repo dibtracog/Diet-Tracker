@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { cleanupPhotos } from "@/lib/photos";
 import { Icon } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
 import Sheet from "@/components/Sheet";
@@ -10,18 +11,31 @@ import { useToast } from "@/components/Toast";
 import { dayLabel, longDate, resolveDate, toKey } from "@/lib/dates";
 import {
   addWater,
+  duplicateEntry,
   entriesFor,
   entryTotals,
   logFood,
   quickFoods,
   removeEntry,
+  removePendingMeal,
+  removeWater,
   restoreEntry,
+  restorePendingMeal,
+  restoreWater,
   undoWater,
   useStore,
   waterFor,
   type Entry,
   type Food,
+  type PendingMeal,
+  type WaterLog,
 } from "@/lib/store";
+import PendingMeals from "./PendingMeals";
+import WaterLogList from "./WaterLogList";
+
+/** Removes stored photos nothing refers to, once per app session (after the Undo window). */
+let photosCleaned = false;
+let latest: { entries: Entry[]; pendingMeals: PendingMeal[] } = { entries: [], pendingMeals: [] };
 import { useToday } from "@/lib/useToday";
 import EntryForm from "./EntryForm";
 import FoodLog from "./FoodLog";
@@ -42,6 +56,22 @@ export default function TodayView() {
   const [editOpen, setEditOpen] = useState(false);
   const [editKey, setEditKey] = useState(0);
   const closeEdit = useCallback(() => setEditOpen(false), []);
+  const [waterOpen, setWaterOpen] = useState(false);
+  const closeWater = useCallback(() => setWaterOpen(false), []);
+
+  useEffect(() => {
+    if (!s.ready || photosCleaned) return;
+    photosCleaned = true;
+    const t = window.setTimeout(() => {
+      // Read the latest data at that moment, not when the timer was set.
+      const keep = new Set<string>();
+      for (const e of latest.entries) if (e.photoId) keep.add(e.photoId);
+      for (const m of latest.pendingMeals) if (m.photoId) keep.add(m.photoId);
+      void cleanupPhotos(keep);
+    }, 60_000);
+    return () => window.clearTimeout(t);
+  }, [s.ready]);
+  latest = s;
 
   if (!s.ready || !today) return <TodaySkeleton />;
 
@@ -68,6 +98,22 @@ export default function TodayView() {
     setEditing(e);
     setEditKey((k) => k + 1);
     setEditOpen(true);
+  };
+
+  const logAgain = (e: Entry) => {
+    closeEdit();
+    const copy = duplicateEntry(e, todayKey);
+    toast.show(`${e.name} logged again today`, { action: { label: "Undo", onClick: () => removeEntry(copy.id) } });
+  };
+
+  const discardPending = (m: PendingMeal) => {
+    removePendingMeal(m.id);
+    toast.show("Photo meal discarded", { icon: "trash", action: { label: "Undo", onClick: () => restorePendingMeal(m) } });
+  };
+
+  const dropWater = (w: WaterLog) => {
+    removeWater(w.id);
+    toast.show(`${w.ml} ml removed`, { icon: "trash", action: { label: "Undo", onClick: () => restoreWater(w) } });
   };
 
   return (
@@ -97,6 +143,7 @@ export default function TodayView() {
             canUndo={water.count > 0}
             onAdd={(ml) => addWater(date, ml)}
             onUndo={() => undoWater(date)}
+            onOpenLog={() => setWaterOpen(true)}
           />
           <QuickAdd
             foods={quickFoods(s.foods)}
@@ -105,7 +152,8 @@ export default function TodayView() {
             libraryEmpty={s.foods.length === 0}
           />
         </div>
-        <div className="area-log">
+        <div className="area-log log-stack">
+          <PendingMeals meals={s.pendingMeals} todayKey={todayKey} onRemove={discardPending} />
           <FoodLog entries={entries} onRemove={remove} onEdit={edit} addHref={libraryHref} />
         </div>
       </div>
@@ -120,8 +168,13 @@ export default function TodayView() {
               closeEdit();
               remove(e);
             }}
+            onLogAgain={logAgain}
           />
         ) : null}
+      </Sheet>
+
+      <Sheet open={waterOpen} onClose={closeWater} title={`Water · ${dayLabel(date, todayKey)}`}>
+        <WaterLogList logs={s.water.filter((w) => w.date === date)} onRemove={dropWater} />
       </Sheet>
 
       {toast.node}

@@ -11,12 +11,14 @@ export default function WaterCard({
   canUndo,
   onAdd,
   onUndo,
+  onOpenLog,
 }: {
   total: number;
   goal: number;
   canUndo: boolean;
   onAdd: (ml: number) => void;
   onUndo: () => void;
+  onOpenLog: () => void;
 }) {
   const filled = goal > 0 ? Math.min(SEGMENTS, Math.round((total / goal) * SEGMENTS)) : 0;
 
@@ -29,9 +31,9 @@ export default function WaterCard({
             {fmt(total)} <span>/ {fmt(goal)} ml</span>
           </div>
         </div>
-        <span className="water-icon">
+        <button type="button" className="water-icon" onClick={onOpenLog} aria-label="See water entries">
           <Icon name="droplet" size={20} />
-        </span>
+        </button>
       </div>
 
       <div

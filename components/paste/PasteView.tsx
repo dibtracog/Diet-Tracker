@@ -9,7 +9,9 @@ import { useToast } from "@/components/Toast";
 import { canReadClipboard, copyText } from "@/lib/clipboard";
 import { resolveDate, shortDate, toKey } from "@/lib/dates";
 import { buildPrompt, parseImport, type ParseResult } from "@/lib/importCode";
+import { getPhoto } from "@/lib/photos";
 import { useStore } from "@/lib/store";
+import { Photo } from "@/components/Thumb";
 import { useToday } from "@/lib/useToday";
 import PreviewForm from "./PreviewForm";
 
@@ -26,12 +28,36 @@ export default function PasteView() {
   const [formKey, setFormKey] = useState(0);
   const [saved, setSaved] = useState<Saved | null>(null);
   const [canRead, setCanRead] = useState(false);
+  const [canShare, setCanShare] = useState(false);
 
-  useEffect(() => setCanRead(canReadClipboard()), []);
+  useEffect(() => {
+    setCanRead(canReadClipboard());
+    try {
+      // Sharing files needs https, so this lights up once the app is on Vercel.
+      setCanShare(!!navigator.canShare?.({ files: [new File([""], "meal.jpg", { type: "image/jpeg" })] }));
+    } catch {
+      setCanShare(false);
+    }
+  }, []);
+
+  // Opened from a photo meal ("Fill in")?
+  const pendingId = params.get("pending");
+  const meal = pendingId ? s.pendingMeals.find((m) => m.id === pendingId) : undefined;
 
   const todayKey = today ? toKey(today) : null;
-  const date = todayKey ? resolveDate(params.get("date"), todayKey) : null;
-  const prompt = buildPrompt(s.promptNotes);
+  const date = meal ? meal.date : todayKey ? resolveDate(params.get("date"), todayKey) : null;
+  const prompt = buildPrompt(s.promptNotes) + (meal?.note ? ` ${meal.note}` : "");
+
+  const share = async () => {
+    if (!meal?.photoId) return;
+    const blob = await getPhoto(meal.photoId);
+    if (!blob) return toast.show("This photo isn't on this device", { icon: "x" });
+    try {
+      await navigator.share({ files: [new File([blob], "meal.jpg", { type: "image/jpeg" })], text: prompt });
+    } catch {
+      // closed the share menu
+    }
+  };
 
   const copy = async () => {
     const ok = await copyText(prompt);
@@ -92,9 +118,31 @@ export default function PasteView() {
 
   return (
     <div className="narrow">
-      <PageHeader eyebrow={date && date !== todayKey ? `Adding to ${shortDate(date)}` : "Add entry"} title="Paste AI entry" />
+      <PageHeader
+        eyebrow={date && date !== todayKey ? `Adding to ${shortDate(date)}` : "Add entry"}
+        title={meal ? "Fill in photo meal" : "Paste AI entry"}
+      />
 
       <div className="steps">
+        {meal ? (
+          <section className="card card-pad" aria-label="Your photo">
+            <Photo photoId={meal.photoId} />
+            <div className="share-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="step-title">{meal.note || "Photo meal"}</div>
+                <div className="step-text">
+                  Taken {meal.date === todayKey ? "today" : shortDate(meal.date)} at {meal.time}
+                  {meal.note ? ". Your note is added to the prompt." : ""}
+                </div>
+              </div>
+              {canShare && meal.photoId ? (
+                <button type="button" className="btn btn-primary btn-sm" onClick={share}>
+                  Share to AI
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
         <section className="card card-pad step">
           <span className="step-num">1</span>
           <div className="step-body">
@@ -216,6 +264,8 @@ export default function PasteView() {
                 date={date}
                 todayKey={todayKey}
                 foods={s.foods}
+                pendingId={meal?.id}
+                initialTime={meal?.time}
                 onSaved={setSaved}
                 onCancel={reset}
               />

@@ -14,7 +14,7 @@ import { deleteFood, logFood, removeEntry, restoreFood, toggleFavourite, useStor
 import { useToday } from "@/lib/useToday";
 import FoodForm from "./FoodForm";
 
-const FILTERS = ["All", "Favourites", "Most used"] as const;
+const FILTERS = ["All", "Favourites", "Recent", "Most used"] as const;
 type Filter = (typeof FILTERS)[number];
 
 export default function LibraryView() {
@@ -35,6 +35,8 @@ export default function LibraryView() {
     let list = s.foods.filter((f) => f.name.toLowerCase().includes(q));
     if (filter === "Favourites") list = list.filter((f) => f.favourite);
     if (filter === "Most used") list = [...list].sort((a, b) => b.uses - a.uses);
+    else if (filter === "Recent")
+      list = list.filter((f) => f.lastUsedAt).sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
     else list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     return list;
   }, [s.foods, query, filter]);
@@ -170,7 +172,13 @@ export default function LibraryView() {
           ) : (
             <div className="card empty">
               <Icon name="search" size={28} />
-              <div>{query ? `No foods match “${query}”.` : "No favourites yet. Tap the star on a food."}</div>
+              <div>
+                {query
+                  ? `No foods match “${query}”.`
+                  : filter === "Recent"
+                    ? "Nothing logged from your library yet."
+                    : "No favourites yet. Tap the star on a food."}
+              </div>
             </div>
           )}
         </>

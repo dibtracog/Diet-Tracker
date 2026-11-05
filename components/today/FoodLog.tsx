@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icons";
+import Thumb from "@/components/Thumb";
 import { fmt, portion } from "@/lib/format";
 import { entryTotals, type Entry } from "@/lib/store";
 
@@ -37,13 +38,13 @@ export default function FoodLog({
           {entries.map((e) => (
             <div key={e.id} className="row">
               <button type="button" className="row-hit" onClick={() => onEdit(e)} aria-label={`Edit ${e.name}`}>
-                <span className="row-time num">{e.time}</span>
+                {e.photoId ? <Thumb photoId={e.photoId} size={44} /> : null}
                 <span className="row-main">
                   <span className="row-title" style={{ display: "block" }}>
                     {e.name}
                   </span>
-                  <span className="row-sub" style={{ display: "block" }}>
-                    {portion(e.serving, e.servings)}
+                  <span className="row-sub num" style={{ display: "block" }}>
+                    {e.time} · {portion(e.serving, e.servings)}
                   </span>
                   <span className="row-macros num">
                     <span>

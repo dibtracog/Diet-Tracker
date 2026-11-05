@@ -6,7 +6,7 @@ import { Icon } from "@/components/Icons";
 import { nowTime } from "@/lib/dates";
 import { round1 } from "@/lib/format";
 import type { ParsedDish } from "@/lib/importCode";
-import { addEntry, addFood, type Food } from "@/lib/store";
+import { addEntry, addFood, resolvePendingMeal, type Food } from "@/lib/store";
 
 type Vals = Record<"name" | "serving" | "kcal" | "protein" | "carbs" | "fat" | "fiber" | "sugar" | "sodium", string>;
 
@@ -17,6 +17,8 @@ export default function PreviewForm({
   date: initialDate,
   todayKey,
   foods,
+  pendingId,
+  initialTime,
   onSaved,
   onCancel,
 }: {
@@ -24,6 +26,9 @@ export default function PreviewForm({
   date: string;
   todayKey: string;
   foods: Food[];
+  /** When filling in a photo meal, saving turns it into this entry. */
+  pendingId?: string;
+  initialTime?: string;
   onSaved: (info: { date: string; name: string; savedToLibrary: boolean }) => void;
   onCancel: () => void;
 }) {
@@ -39,7 +44,7 @@ export default function PreviewForm({
     sodium: str(dish.sodium),
   });
   const [date, setDate] = useState(initialDate);
-  const [time, setTime] = useState(nowTime);
+  const [time, setTime] = useState(() => initialTime ?? nowTime());
   const [saveToLibrary, setSaveToLibrary] = useState(false);
   const [error, setError] = useState("");
 
@@ -74,7 +79,9 @@ export default function PreviewForm({
       fat: round1(fat),
       ...extras,
     };
-    addEntry({ ...base, date, time: /^\d{2}:\d{2}$/.test(time) ? time : nowTime(), servings: 1, notes: dish.notes });
+    const entry = { ...base, date, time: /^\d{2}:\d{2}$/.test(time) ? time : nowTime(), servings: 1, notes: dish.notes };
+    if (pendingId) resolvePendingMeal(pendingId, entry);
+    else addEntry(entry);
     if (saveToLibrary) addFood({ ...base, favourite: false });
     onSaved({ date, name, savedToLibrary: saveToLibrary });
   };

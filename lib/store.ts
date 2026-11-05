@@ -55,8 +55,20 @@ export type Entry = Macros &
     foodId?: string;
     /** Free-text note, e.g. the AI's assumptions. */
     notes?: string;
+    /** Meal photo kept on the device that took it (see lib/photos.ts). */
+    photoId?: string;
     createdAt: number;
   };
+
+/** A meal photographed now, with nutrition to be filled in later. */
+export type PendingMeal = {
+  id: string;
+  date: string;
+  time: string;
+  photoId?: string;
+  note?: string;
+  createdAt: number;
+};
 
 export type WaterLog = { id: string; date: string; ml: number; createdAt: number };
 
@@ -66,6 +78,7 @@ export type Data = {
   version: 1;
   foods: Food[];
   entries: Entry[];
+  pendingMeals: PendingMeal[];
   water: WaterLog[];
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
@@ -89,7 +102,7 @@ export type FoodInput = Pick<Food, "name" | "serving" | "kcal" | "protein" | "ca
 
 export type EntryInput = Omit<Entry, "id" | "createdAt">;
 
-type Kind = "food" | "entry" | "water" | "profile";
+type Kind = "food" | "entry" | "pending" | "water" | "profile";
 type Op = { type: "upsert"; id: string; kind: Kind; data: unknown } | { type: "delete"; id: string };
 
 // ---------------------------------------------------------------------------
@@ -106,6 +119,7 @@ const emptyData = (): Data => ({
   version: 1,
   foods: [],
   entries: [],
+  pendingMeals: [],
   water: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
@@ -132,6 +146,7 @@ const dataOf = (s: State): Data => ({
   version: 1,
   foods: s.foods,
   entries: s.entries,
+  pendingMeals: s.pendingMeals,
   water: s.water,
   goals: s.goals,
   promptNotes: s.promptNotes,
@@ -148,6 +163,7 @@ function normalize(raw: unknown): Data | null {
     version: 1,
     foods: list<Food>(r.foods).map((f) => ({ ...f, favourite: !!f.favourite, uses: Number(f.uses) || 0 })),
     entries: list<Entry>(r.entries).map((e) => ({ ...e, servings: Number(e.servings) || 1 })),
+    pendingMeals: list<PendingMeal>(r.pendingMeals),
     water: list<WaterLog>(r.water),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
@@ -266,9 +282,10 @@ export async function signOut() {
 /** Works out which records changed between two versions of the data. */
 function diff(prev: Data, next: Data): Op[] {
   const ops: Op[] = [];
-  const collections: [Kind, "foods" | "entries" | "water"][] = [
+  const collections: [Kind, "foods" | "entries" | "pendingMeals" | "water"][] = [
     ["food", "foods"],
     ["entry", "entries"],
+    ["pending", "pendingMeals"],
     ["water", "water"],
   ];
   for (const [kind, key] of collections) {
@@ -339,6 +356,7 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
   const data = normalize({
     foods: rows.filter((r) => r.kind === "food").map((r) => r.data),
     entries: rows.filter((r) => r.kind === "entry").map((r) => r.data),
+    pendingMeals: rows.filter((r) => r.kind === "pending").map((r) => r.data),
     water: rows.filter((r) => r.kind === "water").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
@@ -358,6 +376,7 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     ...server,
     foods: addMissing(server.foods, local.foods),
     entries: addMissing(server.entries, local.entries),
+    pendingMeals: addMissing(server.pendingMeals, local.pendingMeals),
     water: addMissing(server.water, local.water),
     ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
   };
@@ -534,8 +553,49 @@ export function addEntry(input: EntryInput): Entry {
   return entry;
 }
 
-export function updateEntry(id: string, patch: Partial<Pick<Entry, "servings" | "time">>) {
+export type EntryPatch = Partial<
+  Pick<Entry, "servings" | "time" | "date" | "name" | "serving" | "kcal" | "protein" | "carbs" | "fat">
+>;
+
+export function updateEntry(id: string, patch: EntryPatch) {
   update((d) => ({ ...d, entries: d.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) }));
+}
+
+/** Logs a copy of an entry again (e.g. the same meal today). */
+export function duplicateEntry(entry: Entry, date: string): Entry {
+  const copy: Entry = { ...entry, id: uid(), date, time: nowTime(), createdAt: Date.now() };
+  update((d) => ({ ...d, entries: [...d.entries, copy] }));
+  return copy;
+}
+
+// ---------------------------------------------------------------------------
+// Photo meals waiting for details
+// ---------------------------------------------------------------------------
+
+export function addPendingMeal(input: { date: string; photoId?: string; note?: string }): PendingMeal {
+  const meal: PendingMeal = { ...input, id: uid(), time: nowTime(), createdAt: Date.now() };
+  update((d) => ({ ...d, pendingMeals: [...d.pendingMeals, meal] }));
+  return meal;
+}
+
+export function removePendingMeal(id: string) {
+  update((d) => ({ ...d, pendingMeals: d.pendingMeals.filter((m) => m.id !== id) }));
+}
+
+export function restorePendingMeal(meal: PendingMeal) {
+  update((d) => (d.pendingMeals.some((m) => m.id === meal.id) ? d : { ...d, pendingMeals: [...d.pendingMeals, meal] }));
+}
+
+/** Turns a photo meal into a real log entry (keeping its photo) in one step. */
+export function resolvePendingMeal(id: string, input: EntryInput): Entry {
+  const meal = state.pendingMeals.find((m) => m.id === id);
+  const entry: Entry = { ...input, photoId: input.photoId ?? meal?.photoId, id: uid(), createdAt: Date.now() };
+  update((d) => ({
+    ...d,
+    entries: [...d.entries, entry],
+    pendingMeals: d.pendingMeals.filter((m) => m.id !== id),
+  }));
+  return entry;
 }
 
 export function removeEntry(id: string) {
@@ -552,6 +612,14 @@ export function restoreEntry(entry: Entry) {
 
 export function addWater(date: string, ml: number) {
   update((d) => ({ ...d, water: [...d.water, { id: uid(), date, ml, createdAt: Date.now() }] }));
+}
+
+export function removeWater(id: string) {
+  update((d) => ({ ...d, water: d.water.filter((w) => w.id !== id) }));
+}
+
+export function restoreWater(log: WaterLog) {
+  update((d) => (d.water.some((w) => w.id === log.id) ? d : { ...d, water: [...d.water, log] }));
 }
 
 /** Removes the most recent water entry for that day. */
