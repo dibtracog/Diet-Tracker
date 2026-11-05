@@ -6,6 +6,8 @@ import PageHeader from "@/components/PageHeader";
 import WeeklyChart from "@/components/history/WeeklyChart";
 import WeightSection from "@/components/history/WeightSection";
 import { weeklyStats } from "@/lib/trends";
+import { bestStreak, currentStreak, loggedDays, loggedInLast } from "@/lib/streaks";
+import { Icon } from "@/components/Icons";
 import { addDays, dayLabel, shortDate, toKey } from "@/lib/dates";
 import { fmt, round1 } from "@/lib/format";
 import { entriesFor, entryTotals, useStore, waterFor } from "@/lib/store";
@@ -41,10 +43,41 @@ export default function HistoryPage() {
   const avgProtein = avg((r) => r.t.protein);
   const onTarget = week.filter((r) => Math.abs(r.t.kcal - s.goals.kcal) <= s.goals.kcal * 0.1).length;
   const weeks = weeklyStats(s, todayKey, 8);
+  const logged = loggedDays(s);
+  const streak = currentStreak(logged, todayKey);
+  const best = bestStreak(logged);
+  const last30 = loggedInLast(logged, todayKey, 30);
 
   return (
     <div className="narrow">
       <PageHeader eyebrow="Your progress" title="History" />
+
+      <div className="tiles">
+        <div className="card tile">
+          <div className="tile-label">
+            <Icon name="flame" size={12} strokeWidth={2.2} style={{ color: "var(--carbs)", verticalAlign: -1, marginRight: 4 }} />
+            Streak
+          </div>
+          <div className="tile-value num">
+            {streak}
+            <small>day{streak === 1 ? "" : "s"}</small>
+          </div>
+        </div>
+        <div className="card tile">
+          <div className="tile-label">Best streak</div>
+          <div className="tile-value num">
+            {best}
+            <small>day{best === 1 ? "" : "s"}</small>
+          </div>
+        </div>
+        <div className="card tile">
+          <div className="tile-label">Logged, 30 days</div>
+          <div className="tile-value num">
+            {last30}
+            <small>/ 30</small>
+          </div>
+        </div>
+      </div>
 
       <div className="tiles">
         <div className="card tile">

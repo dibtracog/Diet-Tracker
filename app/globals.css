@@ -255,6 +255,10 @@ p {
   font-weight: 600;
   color: var(--text-3);
   min-height: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 .page-title {
   font-size: 28px;
@@ -745,7 +749,10 @@ p {
   font-size: 16px;
   font-weight: 650;
 }
-.day-pill.is-today .dnum::after {
+.day-pill.is-today .dnum {
+  color: var(--accent);
+}
+.day-pill.has-log .dnum::after {
   content: "";
   position: absolute;
   bottom: 4px;
@@ -764,8 +771,23 @@ p {
 .day-pill.is-selected .dow {
   color: rgba(12, 42, 31, 0.6);
 }
-.day-pill.is-selected.is-today .dnum::after {
+.day-pill.is-selected .dnum {
+  color: var(--on-primary);
+}
+.day-pill.is-selected.has-log .dnum::after {
   background: #1e7f5c;
+}
+.streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--carbs);
+  background: rgba(243, 201, 105, 0.12);
+  vertical-align: 1px;
 }
 .day-pill:disabled {
   opacity: 0.4;
@@ -1232,6 +1254,49 @@ p {
   align-items: center;
   margin-top: 12px;
 }
+/* Day summary */
+.goal-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.goal-line:first-of-type {
+  border-top: 0;
+}
+.goal-mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border-strong);
+}
+.goal-mark.ok {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-primary);
+}
+.goal-label {
+  font-weight: 600;
+}
+.goal-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.goal-status.ok {
+  color: var(--accent);
+}
+.badge-good {
+  color: var(--accent);
+  border-color: rgba(126, 226, 174, 0.4);
+  background: rgba(126, 226, 174, 0.1);
+}
+
 /* Recipes */
 .seg {
   display: grid;

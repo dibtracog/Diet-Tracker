@@ -31,6 +31,8 @@ import {
   type WaterLog,
 } from "@/lib/store";
 import PendingMeals from "./PendingMeals";
+import DaySummary from "./DaySummary";
+import { currentStreak, dayGoals, loggedDays } from "@/lib/streaks";
 import WaterLogList from "./WaterLogList";
 
 /** Removes stored photos nothing refers to, once per app session (after the Undo window). */
@@ -81,6 +83,12 @@ export default function TodayView() {
   const entries = entriesFor(s, date);
   const water = waterFor(s, date);
   const libraryHref = isToday ? "/library" : `/library?date=${date}`;
+  const logged = loggedDays(s);
+  const streak = currentStreak(logged, todayKey);
+  const goals = dayGoals(s, date);
+  const label = dayLabel(date, todayKey);
+  const summaryTitle = isToday ? "Today so far" : `How ${label === "Yesterday" ? "yesterday" : label} went`;
+  const showSummary = entries.length > 0 || water.total > 0;
 
   const select = (k: string) => router.replace(k === todayKey ? "/" : `/?date=${k}`, { scroll: false });
 
@@ -119,7 +127,17 @@ export default function TodayView() {
   return (
     <>
       <PageHeader
-        eyebrow={longDate(date)}
+        eyebrow={
+          <>
+            {longDate(date)}
+            {isToday && streak >= 2 ? (
+              <span className="streak-pill" title="Days in a row with food logged">
+                <Icon name="flame" size={12} strokeWidth={2.2} />
+                {streak} day streak
+              </span>
+            ) : null}
+          </>
+        }
         title={dayLabel(date, todayKey)}
         action={
           <Link href={isToday ? "/paste" : `/paste?date=${date}`} className="btn btn-secondary btn-sm">
@@ -131,12 +149,13 @@ export default function TodayView() {
 
       <div className="today-grid">
         <div className="area-week">
-          <WeekStrip selected={date} todayKey={todayKey} onSelect={select} />
+          <WeekStrip selected={date} todayKey={todayKey} onSelect={select} logged={logged} />
         </div>
         <div className="area-summary">
           <SummaryCard totals={entryTotals(entries)} goals={s.goals} />
         </div>
         <div className="area-side">
+          {showSummary && !isToday ? <DaySummary goals={goals} title={summaryTitle} isToday={false} /> : null}
           <WaterCard
             total={water.total}
             goal={s.goals.waterMl}
@@ -151,6 +170,7 @@ export default function TodayView() {
             libraryHref={libraryHref}
             libraryEmpty={s.foods.length === 0}
           />
+          {showSummary && isToday ? <DaySummary goals={goals} title={summaryTitle} isToday /> : null}
         </div>
         <div className="area-log log-stack">
           <PendingMeals meals={s.pendingMeals} todayKey={todayKey} onRemove={discardPending} />

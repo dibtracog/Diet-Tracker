@@ -7,10 +7,13 @@ export default function WeekStrip({
   selected,
   todayKey,
   onSelect,
+  logged,
 }: {
   selected: string;
   todayKey: string;
   onSelect: (key: string) => void;
+  /** Days with food logged get a small dot. */
+  logged: Set<string>;
 }) {
   // Week of the selected day, starting Monday.
   const start = addDays(selected, -((fromKey(selected).getDay() + 6) % 7));
@@ -33,9 +36,9 @@ export default function WeekStrip({
               type="button"
               disabled={k > todayKey}
               onClick={() => onSelect(k)}
-              className={`day-pill ${isToday ? "is-today" : ""} ${isSel ? "is-selected" : ""}`}
+              className={`day-pill ${isToday ? "is-today" : ""} ${isSel ? "is-selected" : ""} ${logged.has(k) ? "has-log" : ""}`}
               aria-pressed={isSel}
-              aria-label={d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+              aria-label={`${d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}${logged.has(k) ? ", logged" : ""}`}
             >
               <span className="dow">{d.toLocaleDateString("en-IN", { weekday: "short" })}</span>
               <span className="dnum num">{d.getDate()}</span>
