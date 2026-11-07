@@ -350,10 +350,17 @@ function ensureLoaded() {
   });
 }
 
+/** False until Supabase has told us whether anyone is signed in. */
+let authKnown = false;
+
 function handleSession(session: Session | null) {
   const id = session?.user.id ?? null;
   const email = session?.user.email ?? undefined;
-  if (id === userId) {
+  // The very first answer must always be handled: "nobody signed in" has to move
+  // the app from "loading" to the login screen, even though userId was already null.
+  const first = !authKnown;
+  authKnown = true;
+  if (!first && id === userId) {
     if (id && email !== state.email) setState({ email });
     return;
   }
