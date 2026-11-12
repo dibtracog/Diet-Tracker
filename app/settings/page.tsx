@@ -5,6 +5,7 @@ import { Icon, type IconName } from "@/components/Icons";
 import PageHeader from "@/components/PageHeader";
 import GoalsForm from "@/components/settings/GoalsForm";
 import PromptNotesForm from "@/components/settings/PromptNotesForm";
+import RemindersForm from "@/components/settings/RemindersForm";
 import { copyText } from "@/lib/clipboard";
 import { downloadFile, logToCsv } from "@/lib/download";
 import { FORMAT_EXAMPLE } from "@/lib/importCode";
@@ -70,7 +71,8 @@ function Row({
   );
 }
 
-const soon = <span className="badge">Soon</span>;
+const remindLabel = (r: { on: boolean; times: string[] }) =>
+  r.on ? (r.times.length === 1 ? `Daily at ${r.times[0]}` : `${r.times.length} times a day`) : "Off";
 
 export default function SettingsPage() {
   const s = useStore();
@@ -95,6 +97,13 @@ export default function SettingsPage() {
   const [libImport, setLibImport] = useState<LibraryImport | null>(null);
   const [libOpen, setLibOpen] = useState(false);
   const closeLib = useCallback(() => setLibOpen(false), []);
+  const [remindOpen, setRemindOpen] = useState(false);
+  const [remindKey, setRemindKey] = useState(0);
+  const closeRemind = useCallback(() => setRemindOpen(false), []);
+  const openRemind = () => {
+    setRemindKey((k) => k + 1);
+    setRemindOpen(true);
+  };
 
   // Arriving from the paste screen's "Edit my notes" link opens the notes editor
   // (once saved data has loaded, so the form starts with the current notes).
@@ -224,8 +233,8 @@ export default function SettingsPage() {
       <section className="group">
         <h2 className="group-title">Reminders</h2>
         <div className="card">
-          <Row icon="bell" label="Meal reminders" value={soon} />
-          <Row icon="droplet" label="Water reminders" value={soon} water />
+          <Row icon="bell" label="Meal reminders" value={dash ?? remindLabel(s.reminders.meals)} onClick={openRemind} />
+          <Row icon="droplet" label="Water reminders" value={dash ?? remindLabel(s.reminders.water)} water onClick={openRemind} />
         </div>
       </section>
 
@@ -267,7 +276,9 @@ export default function SettingsPage() {
           {s.auth === "signedIn"
             ? "Your data is saved to your account and shared between your devices. A copy is kept on this device so the app works offline."
             : "Your data is saved in this browser on this device only. Export a backup now and then so nothing is lost."}{" "}
-          Meal photos stay on the device that took them and aren&apos;t part of the backup file.
+          {s.auth === "signedIn"
+            ? "Meal photos are saved to your account too, but aren't part of the backup file."
+            : "Meal photos stay on the device that took them and aren't part of the backup file."}
         </p>
         <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={pickFile} />
         <input ref={libRef} type="file" accept="application/json,.json" hidden onChange={pickLibrary} />
@@ -315,6 +326,18 @@ export default function SettingsPage() {
             </div>
           </>
         ) : null}
+      </Sheet>
+
+      <Sheet open={remindOpen} onClose={closeRemind} title="Reminders">
+        <RemindersForm
+          key={remindKey}
+          reminders={s.reminders}
+          onSaved={() => {
+            closeRemind();
+            toast.show("Reminders saved", { icon: "bell" });
+          }}
+          onMessage={(message, ok) => toast.show(message, { icon: ok ? "bell" : "x" })}
+        />
       </Sheet>
 
       <Sheet open={keysOpen} onClose={closeKeys} title="Shortcuts & gestures">

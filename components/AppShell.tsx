@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icons";
 import AddSheet from "./AddSheet";
 import LoginScreen from "./LoginScreen";
@@ -13,6 +13,9 @@ import { useHotkeys } from "@/lib/useHotkeys";
 import TodayDate from "./TodayDate";
 import { useToast } from "./Toast";
 import { useStore } from "@/lib/store";
+import { uploadPendingPhotos } from "@/lib/photos";
+import { refreshPush } from "@/lib/push";
+import { useServiceWorker } from "@/lib/useServiceWorker";
 
 type NavItem = { href: string; label: string; icon: IconName };
 
@@ -29,6 +32,24 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const closeAdd = useCallback(() => setAddOpen(false), []);
   const { auth } = useStore();
   const toast = useToast();
+
+  useServiceWorker();
+
+  // Once signed in: send photos taken offline, and keep this device's
+  // notification details (time zone) up to date.
+  useEffect(() => {
+    if (auth !== "signedIn") return;
+    const upload = () => void uploadPendingPhotos();
+    const t = window.setTimeout(() => {
+      upload();
+      void refreshPush();
+    }, 3000);
+    window.addEventListener("online", upload);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("online", upload);
+    };
+  }, [auth]);
 
   // "Snap a photo": the phone offers its camera or gallery.
   const photoInput = useRef<HTMLInputElement>(null);

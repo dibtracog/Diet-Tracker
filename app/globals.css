@@ -2743,3 +2743,102 @@ kbd {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ---- Reminders (Settings) ---- */
+.device-box {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.device-box.is-on {
+  border-color: rgba(126, 226, 174, 0.35);
+}
+.device-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--primary-soft);
+  color: var(--text-2);
+}
+.device-box.is-on .device-icon {
+  color: var(--accent);
+}
+.device-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+}
+.device-title {
+  font-weight: 600;
+}
+.device-sub,
+.remind-hint {
+  font-size: 13.5px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+.device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.remind-section {
+  display: grid;
+  gap: 10px;
+}
+.time-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.time-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  padding-left: 10px;
+}
+.time-chip:focus-within {
+  border-color: var(--accent);
+}
+.time-input {
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  height: 38px;
+  min-width: 0;
+  color-scheme: dark;
+}
+.time-remove {
+  width: 34px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  border-radius: 0 11px 11px 0;
+}
+@media (hover: hover) {
+  .time-remove:hover {
+    color: var(--fat);
+  }
+}
+.time-add {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -159,6 +159,17 @@ export type Goals = Macros & {
   windowHours?: number;
 };
 
+/** Push reminders. Times are "HH:MM" in the phone's own time zone. */
+export type Reminders = {
+  meals: { on: boolean; times: string[] };
+  water: { on: boolean; times: string[] };
+};
+
+export const DEFAULT_REMINDERS: Reminders = {
+  meals: { on: false, times: ["09:30", "14:00", "21:00"] },
+  water: { on: false, times: ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"] },
+};
+
 export type Data = {
   version: 1;
   foods: Food[];
@@ -173,6 +184,7 @@ export type Data = {
   goals: Goals;
   /** The user's own notes appended to the AI prompt (usual portions, cuisine...). */
   promptNotes: string;
+  reminders: Reminders;
 };
 
 export type AuthStatus = "local" | "loading" | "signedOut" | "signedIn";
@@ -222,6 +234,7 @@ const emptyData = (): Data => ({
   measurements: [],
   goals: { ...DEFAULT_GOALS },
   promptNotes: "",
+  reminders: DEFAULT_REMINDERS,
 });
 
 const SERVER_STATE: State = {
@@ -254,7 +267,23 @@ const dataOf = (s: State): Data => ({
   measurements: s.measurements,
   goals: s.goals,
   promptNotes: s.promptNotes,
+  reminders: s.reminders,
 });
+
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function normalizeReminders(raw: unknown): Reminders {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof Reminders, unknown>>;
+  const part = (v: unknown, fallback: Reminders["meals"]): Reminders["meals"] => {
+    if (!v || typeof v !== "object") return fallback;
+    const p = v as { on?: unknown; times?: unknown };
+    const times = Array.isArray(p.times)
+      ? [...new Set(p.times.filter((t): t is string => typeof t === "string" && TIME.test(t)))].sort()
+      : fallback.times;
+    return { on: !!p.on, times };
+  };
+  return { meals: part(r.meals, DEFAULT_REMINDERS.meals), water: part(r.water, DEFAULT_REMINDERS.water) };
+}
 
 function normalize(raw: unknown): Data | null {
   if (!raw || typeof raw !== "object") return null;
@@ -286,6 +315,7 @@ function normalize(raw: unknown): Data | null {
     ),
     goals: { ...DEFAULT_GOALS, ...(typeof r.goals === "object" && r.goals ? (r.goals as Partial<Goals>) : {}) },
     promptNotes: typeof r.promptNotes === "string" ? r.promptNotes : "",
+    reminders: normalizeReminders(r.reminders),
   };
 }
 
@@ -340,9 +370,29 @@ function ensureLoaded() {
   }
 
   const sb = getSupabase()!;
-  sb.auth.getSession().then(({ data }) => handleSession(data.session));
+  sb.auth
+    .getSession()
+    .then(({ data, error }) => {
+      if (data.session) return handleSession(data.session);
+      // Opening the app offline: the saved login can't be refreshed, which looks
+      // like "nobody signed in". Carry on as the last user with this device's copy.
+      const last = lastUser();
+      const unreachable = !navigator.onLine || error?.name === "AuthRetryableFetchError";
+      if (last && unreachable) return startSession(last.id, last.email, true);
+      handleSession(null);
+    })
+    .catch(() => {
+      const last = lastUser();
+      if (last) startSession(last.id, last.email, true);
+      else handleSession(null);
+    });
   // Supabase advises not to await its own calls inside this callback, hence the timeout.
-  sb.auth.onAuthStateChange((_event, session) => window.setTimeout(() => handleSession(session), 0));
+  sb.auth.onAuthStateChange((event, session) => {
+    // "No session" only counts as signing out when Supabase says so; the first
+    // answer comes from getSession above.
+    if (!session && event !== "SIGNED_OUT") return;
+    window.setTimeout(() => handleSession(session), 0);
+  });
 
   window.addEventListener("online", () => void syncNow());
   document.addEventListener("visibilitychange", () => {
@@ -362,6 +412,8 @@ function handleSession(session: Session | null) {
   authKnown = true;
   if (!first && id === userId) {
     if (id && email !== state.email) setState({ email });
+    // The login came back after starting offline: catch up now.
+    if (id && state.sync !== "synced") void syncNow();
     return;
   }
   if (!id) {
@@ -370,13 +422,36 @@ function handleSession(session: Session | null) {
     setState({ ...emptyData(), ready: false, auth: "signedOut", email: undefined, sync: "idle" });
     return;
   }
+  startSession(id, email, false);
+}
+
+const LAST_USER_KEY = "diet-tracker:user";
+
+function lastUser(): { id: string; email?: string } | null {
+  const u = readJSON(LAST_USER_KEY) as { id?: unknown; email?: unknown } | null;
+  return u && typeof u.id === "string" ? { id: u.id, email: typeof u.email === "string" ? u.email : undefined } : null;
+}
+
+/** Loads this device's copy for a user. `offline` means the login couldn't be checked yet. */
+function startSession(id: string, email: string | undefined, offline: boolean) {
+  authKnown = true;
   userId = id;
+  writeJSON(LAST_USER_KEY, { id, email });
   const savedOutbox = readJSON(outboxKey());
   outbox = Array.isArray(savedOutbox) ? (savedOutbox as Op[]) : [];
   const cached = normalize(readJSON(cacheKey()));
-  setState({ ...(cached ?? emptyData()), ready: !!cached, auth: "signedIn", email, sync: "idle" });
-  void syncNow();
+  setState({
+    ...(cached ?? emptyData()),
+    ready: offline || !!cached,
+    auth: "signedIn",
+    email,
+    sync: offline ? "offline" : "idle",
+  });
+  if (!offline) void syncNow();
 }
+
+/** The signed-in user's id, or null in local-only mode / when signed out. */
+export const currentUserId = () => userId;
 
 export async function signIn(email: string, password: string): Promise<string | null> {
   const sb = getSupabase();
@@ -393,7 +468,9 @@ export async function signOut() {
   const sb = getSupabase();
   if (!sb) return;
   const id = userId;
-  await sb.auth.signOut();
+  window.localStorage.removeItem(LAST_USER_KEY);
+  // "local" needs no network, so signing out also works offline.
+  await sb.auth.signOut({ scope: "local" });
   if (id) {
     // Clear this device's copy; the data stays safe in the cloud.
     window.localStorage.removeItem(`diet-tracker:cloud:${id}`);
@@ -428,8 +505,13 @@ function diff(prev: Data, next: Data): Op[] {
     for (const [id, rec] of after) if (before.get(id) !== rec) ops.push({ type: "upsert", id, kind, data: rec });
     for (const id of before.keys()) if (!after.has(id)) ops.push({ type: "delete", id });
   }
-  if (prev.goals !== next.goals || prev.promptNotes !== next.promptNotes) {
-    ops.push({ type: "upsert", id: PROFILE_ID, kind: "profile", data: { goals: next.goals, promptNotes: next.promptNotes } });
+  if (prev.goals !== next.goals || prev.promptNotes !== next.promptNotes || prev.reminders !== next.reminders) {
+    ops.push({
+      type: "upsert",
+      id: PROFILE_ID,
+      kind: "profile",
+      data: { goals: next.goals, promptNotes: next.promptNotes, reminders: next.reminders },
+    });
   }
   return ops;
 }
@@ -499,6 +581,7 @@ async function fetchAll(): Promise<{ data: Data; hasProfile: boolean }> {
     measurements: rows.filter((r) => r.kind === "measure").map((r) => r.data),
     goals: profile?.goals,
     promptNotes: profile?.promptNotes,
+    reminders: profile?.reminders,
   })!;
   return { data, hasProfile: !!profile };
 }
@@ -522,7 +605,7 @@ function mergeLocalData(server: Data, hasProfile: boolean): Data {
     habits: addMissing(server.habits, local.habits),
     habitLogs: addMissing(server.habitLogs, local.habitLogs),
     measurements: addMissing(server.measurements, local.measurements),
-    ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes }),
+    ...(hasProfile ? {} : { goals: local.goals, promptNotes: local.promptNotes, reminders: local.reminders }),
   };
   // Keep a copy of the old local data, just in case.
   window.localStorage.setItem(`${LOCAL_KEY}:uploaded`, window.localStorage.getItem(LOCAL_KEY) ?? "");
@@ -1023,6 +1106,10 @@ export function setPromptNotes(promptNotes: string) {
   update((d) => ({ ...d, promptNotes }));
 }
 
+export function updateReminders(reminders: Reminders) {
+  update((d) => ({ ...d, reminders: normalizeReminders(reminders) }));
+}
+
 // ---------------------------------------------------------------------------
 // Backup
 // ---------------------------------------------------------------------------
@@ -1043,7 +1130,9 @@ export function parseBackup(text: string): { ok: true; data: Data } | { ok: fals
     return { ok: false, error: "That file doesn't look like a Diet Tracker backup." };
   }
   const data = normalize(raw);
-  return data ? { ok: true, data } : { ok: false, error: "That file couldn't be read." };
+  if (!data) return { ok: false, error: "That file couldn't be read." };
+  // Backups made before reminders existed shouldn't switch them off.
+  return { ok: true, data: r.reminders ? data : { ...data, reminders: getSnapshot().reminders } };
 }
 
 // ---------------------------------------------------------------------------

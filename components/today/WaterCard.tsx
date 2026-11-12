@@ -41,7 +41,8 @@ export default function WaterCard({
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={goal}
-        aria-valuenow={total}
+        aria-valuenow={Math.min(total, goal)}
+        aria-valuetext={`${total} of ${goal} ml`}
         aria-label="Water progress"
       >
         {Array.from({ length: SEGMENTS }, (_, i) => (

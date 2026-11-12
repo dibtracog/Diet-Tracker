@@ -47,7 +47,7 @@ import WaterLogList from "./WaterLogList";
 
 /** Removes stored photos nothing refers to, once per app session (after the Undo window). */
 let photosCleaned = false;
-let latest: { entries: Entry[]; pendingMeals: PendingMeal[] } = { entries: [], pendingMeals: [] };
+let latest: { entries: Entry[]; pendingMeals: PendingMeal[]; sync?: string } = { entries: [], pendingMeals: [] };
 import { useToday } from "@/lib/useToday";
 import EntryForm from "./EntryForm";
 import FoodLog from "./FoodLog";
@@ -159,7 +159,7 @@ export default function TodayView() {
       const keep = new Set<string>();
       for (const e of latest.entries) if (e.photoId) keep.add(e.photoId);
       for (const m of latest.pendingMeals) if (m.photoId) keep.add(m.photoId);
-      void cleanupPhotos(keep);
+      void cleanupPhotos(keep, latest.sync === "synced");
     }, 60_000);
     return () => window.clearTimeout(t);
   }, [s.ready]);
